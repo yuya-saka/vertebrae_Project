@@ -1,0 +1,39 @@
+# ① まず「すべて無視」
+*
+
+# ② ただし /作業中のフォルダ以下は追跡対象に、またその以下のすべてのファイル・サブフォルダも無視しないで追跡する
+!vertebrae_pix2pix/
+!vertebrae_pix2pix/**   
+!uv.lock
+!pyproject.toml
+!README.md
+#!CLAUDE.md
+!.gitignore
+
+# ③ 重いデータや不要ファイルを無視
+*.nii
+*.nii.gz
+*.txt
+#.lock
+#.toml
+*.png
+*.csv
+*.pth
+*.jpg
+wandb/
+prior_YOLO_file/
+
+#いったん無視するやつ
+*.pt
+*.log
+
+# ④ Python 関連の自動生成ファイル等を無視
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# ⑤ 仮想環境フォルダを無視
+.venv
