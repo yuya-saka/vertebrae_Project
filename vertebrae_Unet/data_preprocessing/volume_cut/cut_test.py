@@ -182,8 +182,8 @@ if __name__ == "__main__":
     logger.info("NIfTI カット処理開始")
     logger.info("=" * 60)
 
-    train_dir = "/mnt/nfs1/home/yamamoto-hiroto/research/vertebrae_saka/vertebrae_Unet/train"
-    output_train_dir = "/mnt/nfs1/home/yamamoto-hiroto/research/vertebrae_saka/vertebrae_Unet/processed_train"
+    train_dir = "/mnt/nfs1/home/yamamoto-hiroto/research/vertebrae_saka/vertebrae_Unet/data/test"
+    output_train_dir = "/mnt/nfs1/home/yamamoto-hiroto/research/vertebrae_saka/vertebrae_Unet/data/processed_test"
     
     try:
         process_directory(train_dir, output_train_dir)

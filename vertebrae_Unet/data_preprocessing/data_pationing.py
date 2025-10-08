@@ -19,8 +19,8 @@ logging.info("スクリプトを開始します。")
 
 # 入力ディレクトリと出力ディレクトリの設定
 input_all = Path("/mnt/nfs1/home/yamamoto-hiroto/research/vertebrae_saka/input_nii")
-output_dir_train = Path("/mnt/nfs1/home/yamamoto-hiroto/research/vertebrae_saka/vertebrae_Unet/train")
-output_dir_test = Path("/mnt/nfs1/home/yamamoto-hiroto/research/vertebrae_saka/vertebrae_Unet/test")
+output_dir_train = Path("/mnt/nfs1/home/yamamoto-hiroto/research/vertebrae_saka/vertebrae_Unet/data/train")
+output_dir_test = Path("/mnt/nfs1/home/yamamoto-hiroto/research/vertebrae_saka/vertebrae_Unet/data/test")
 
 # 出力ディレクトリを作成
 logging.info(f"出力ディレクトリを作成します: {output_dir_train}")
