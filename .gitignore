@@ -2,8 +2,8 @@
 *
 
 # ② ただし /作業中のフォルダ以下は追跡対象に、またその以下のすべてのファイル・サブフォルダも無視しないで追跡する
-!vertebrae_pix2pix/
-!vertebrae_pix2pix/**   
+!vertebrae_Unet/
+!vertebrae_Unet/**   
 !uv.lock
 !pyproject.toml
 !README.md

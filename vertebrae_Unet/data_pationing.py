@@ -19,8 +19,8 @@ logging.info("スクリプトを開始します。")
 
 # 入力ディレクトリと出力ディレクトリの設定
 input_all = Path("/mnt/nfs1/home/yamamoto-hiroto/research/vertebrae_saka/input_nii")
-output_dir_train = Path("/mnt/nfs1/home/yamamoto-hiroto/research/vertebrae_saka/vertebrae_pix2pix/train")
-output_dir_test = Path("/mnt/nfs1/home/yamamoto-hiroto/research/vertebrae_saka/vertebrae_pix2pix/test")
+output_dir_train = Path("/mnt/nfs1/home/yamamoto-hiroto/research/vertebrae_saka/vertebrae_Unet/train")
+output_dir_test = Path("/mnt/nfs1/home/yamamoto-hiroto/research/vertebrae_saka/vertebrae_Unet/test")
 
 # 出力ディレクトリを作成
 logging.info(f"出力ディレクトリを作成します: {output_dir_train}")
@@ -51,7 +51,7 @@ for file_path in files:
 logging.info(f"{len(groups)}個の症例グループが見つかりました。")
 
 # グループをシャッフルして8症例をテストに割り当て
-logging.info("症例グループをシャッフルし、テストデータと訓練・検証データに分割します。")
+logging.info("症例グループをシャッフルし、テストデータと訓練データに分割します。")
 group_keys = list(groups.keys())
 random.shuffle(group_keys)
 
