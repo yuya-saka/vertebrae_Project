@@ -18,9 +18,11 @@ logging.basicConfig(
 logging.info("スクリプトを開始します。")
 
 # 入力ディレクトリと出力ディレクトリの設定
-input_all = Path("/mnt/nfs1/home/yamamoto-hiroto/research/vertebrae_saka/input_nii")
-output_dir_train = Path("/mnt/nfs1/home/yamamoto-hiroto/research/vertebrae_saka/vertebrae_Unet/data/train")
-output_dir_test = Path("/mnt/nfs1/home/yamamoto-hiroto/research/vertebrae_saka/vertebrae_Unet/data/test")
+current_file = Path(__file__).resolve()
+PROJECT_ROOT = current_file.parent.parent.parent #3階層上がプロジェクトルート
+input_all = PROJECT_ROOT / "input_nii"
+output_dir_train = PROJECT_ROOT / "vertebrae_Unet/data/train"
+output_dir_test = PROJECT_ROOT / "vertebrae_Unet/data/test"
 
 # 出力ディレクトリを作成
 logging.info(f"出力ディレクトリを作成します: {output_dir_train}")
