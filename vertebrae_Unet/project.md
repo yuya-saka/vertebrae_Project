@@ -8,56 +8,50 @@ vertebrae_Unet/
 │   ├── conf/                   # Hydra設定ファイル
 │   │   ├── config.yaml         # メイン設定
 │   │   ├── train.yaml          # 学習設定
+|   |   ├── run_train.yaml      # バッチ学習設定(複数fold一括学習)
+|   |   ├── run_infer.yaml      # バッチ推論設定
+|   |   ├── combine_metrics.yaml #評価指標結合設定
 │   │   ├── inference.yaml      # 推論設定
 │   │   ├── constants.yaml      # 定数定義
 │   │   ├── dir/
-│   │   │   └── local.yaml      # ディレクトリパス
+│   │   │   └── local.yaml      # ディレクトリパス設定
 │   │   ├── model/
 │   │   │   ├── attention_unet.yaml      # Attention U-Net設定
-│   │   │   ├── attention_unet_lstm.yaml # U-Net+LSTM設定
-│   │   │   └── unet_gan.yaml            # GAN設定
-│   │   ├── dataset/
-│   │   │   ├── sequence_5.yaml          # 5スライスシーケンス
-│   │   │   └── single_slice.yaml        # 単一スライス
 │   │   └── split/
-│   │       └── train_test.yaml          # データ分割設定
+│   │       ├── fold_0.yaml　　 # フォールド分割
+|   |       ├── fold_1.yaml
+|   |       ├── fold_1.yaml
+|   |       ├── fold_3.yaml
+|   |       └── fold_4.yaml
 │   └── scripts/                # 機能別スクリプト
-│       ├── train/
-│       │   ├── train.py                 # 単一学習
+│       ├── train/　　　　　　　 # 学習関連
+│       │   ├── train.py                 # 単一fold学習
 │       │   └── run_train.py             # バッチ学習
 │       ├── inference/
-│       │   ├── inference.py             # 推論
-│       │   ├── reconstruct_3d.py        # 3D復元
-│       │   └── run_inference.py         # バッチ推論
-│       ├── visualization/
+│       │   ├── inference.py             # 2D推論
+│       │   ├── run_infer.py             # バッチ2D推論
+│       │   └── reconstruct_3d.py        # 3D復元とボクセル骨折確率格納
+│       ├── 3Dvisualization/
 │       │   ├── visualize_heatmap.py     # ヒートマップ
-│       │   ├── visualize_3d.py          # 3Dレンダリング
-│       │   └── visualize_attention.py   # Attention可視化
+│       │   └── visualize_3d.py          # 3Dレンダリング
 │       └── utils/
-│           ├── combine_metrics.py       # 評価指標統合
-│           └── evaluate_3d.py           # 3D評価
+│           ├── combine_metrics.py       # 各foldの評価指標確認、また平均化
+│           └── evaluate_3d.py           # 3Dでの最終評価
 ├── src/                        # ソースコード
-│   ├── datamodule/            # データローダー
+│   ├── datamodule/            # データ前準備、ローダー
 │   │   ├── __init__.py
-│   │   ├── sequence_dataset.py          # シーケンスデータセット
-│   │   ├── single_slice_dataset.py      # 単一スライス
-│   │   └── transforms.py                # データ拡張(オプション)
-│   ├── modelmodule/           # モデルモジュール
+|   |   ├── slice_data/        # スライス画像作成
+|   |   ├── volume_cut/        # nifti各椎体ボリューム切り出し
+|   |   └── data_pationing.py  # train,test分割
+│   ├── modelmodule/           # モデルモジュール(損失関数や評価指標の計算、最適パラメータ探索設定などmodelの使い方の定義)
 │   │   ├── __init__.py
-│   │   ├── attention_unet_module.py     # U-Netモジュール
-│   │   └── unet_lstm_module.py          # U-Net+LSTMモジュール
+│   │   └──  model_module.py     # U-Netモジュール
 │   ├── models/                # アーキテクチャ定義
 │   │   ├── __init__.py
 │   │   ├── attention_unet.py            # Attention U-Net
-│   │   ├── attention_gate.py            # Attention Gate
-│   │   ├── lstm_encoder.py              # LSTM統合
-│   │   ├── discriminator.py             # GAN識別器(オプション)
-│   │   └── losses.py                    # 損失関数
-│   └── utils/                 # ユーティリティ
-│       ├── __init__.py
-│       ├── metrics.py                   # 評価指標(Dice, IoU)
-│       ├── visualization.py             # 可視化関数
-│       └── reconstruction.py            # 3D復元
+│   │   └── attention_gate.py            # Attention Gate
+│   └── utils/                 # ユーティリティ(補助機能)
+│       └── __init__.py　　　　　　
 ├── data/                       # データ
 │   ├── train/
 │   ├── test/
@@ -65,42 +59,39 @@ vertebrae_Unet/
 │   ├── processed_test/
 │   ├── slice_train/
 │   └── slice_test/
-├── data_preprocessing/         # 前処理
-│   ├── data_pationing.py
-│   ├── volume_cut/
-│   └── slice_data/
 ├── output/                     # 実験結果
 │   ├── train/                 # 学習結果
-│   │   ├── fold_0/
-│   │   ├── fold_1/
-│   │   └── ...
+|   |   └── {実験名}/
+|   |         └── axial/             #軸方向ごと
+│   │              ├── fold_0/
+│   │              ├── fold_1/
+│   │              └── ...
 │   ├── inference/             # 推論結果
-│   │   └── test/
+|   |   └── {実験名}/
+|   |         └── axial/             #軸方向ごと
+│   │              ├── fold_0/
+│   │              ├── fold_1/
+│   │              └── ...
 │   ├── visualization/         # 可視化結果
 │   │   ├── heatmaps/
-│   │   ├── 3d_renders/
-│   │   └── attention_maps/
-│   ├── metrics/               # 評価指標
+│   │   └── 3d_renders/
 │   └── wandb/                 # W&Bログ
-├── notebooks/                  # 実験ノートブック
-│   ├── exploratory/           # 探索的分析
-│   └── experiments/           # 実験記録
-└── tests/                      # テストコード
-    ├── test_dataset.py
-    ├── test_model.py
-    └── test_losses.py
+└── notebooks/                  # 可視化や画像確認
+    ├── exploratory/           # 探索的分析
+    └── experiments/           # 実験記録
+
 ```
 
 ## **スクリプト実行ガイド**
 
-### **1. データ前処理スクリプト (vertebrae_Unet/data_preprocessing/)**
+### **1. データ前処理スクリプト (vertebrae_Unet/src/datamodule/)**
 
 #### **1-1. データ分割 (data_pationing.py)**
 **機能**: NIfTIファイルを訓練データ(24症例)とテストデータ(8症例)に分割
 
 ```bash
 # 基本実行
-uv run python vertebrae_Unet/data_preprocessing/data_pationing.py
+uv run python vertebrae_Unet/src/datamodule/data_pationing.py
 ```
 
 **処理内容**:
@@ -120,12 +111,12 @@ uv run python vertebrae_Unet/data_preprocessing/data_pationing.py
 
 **訓練データの切り出し**:
 ```bash
-uv run python vertebrae_Unet/data_preprocessing/volume_cut/cut_train.py
+uv run python vertebrae_Unet/src/datamodule/volume_cut/cut_train.py
 ```
 
 **テストデータの切り出し**:
 ```bash
-uv run python vertebrae_Unet/data_preprocessing/volume_cut/cut_test.py
+uv run python vertebrae_Unet/src/datamodule/volume_cut/cut_test.py
 ```
 
 **処理内容**:
@@ -147,12 +138,12 @@ uv run python vertebrae_Unet/data_preprocessing/volume_cut/cut_test.py
 
 **訓練データのスライス作成 (Axial)**:
 ```bash
-uv run python vertebrae_Unet/data_preprocessing/slice_data/slice_train_axial.py
+uv run python vertebrae_Unet/src/datamodule/slice_data/slice_train_axial.py
 ```
 
 **テストデータのスライス作成 (Axial)**:
 ```bash
-uv run python vertebrae_Unet/data_preprocessing/slice_data/slice_test_axial.py
+uv run python vertebrae_Unet/src/datamodule/slice_data/slice_test_axial.py
 ```
 
 **処理内容**:
@@ -318,11 +309,11 @@ uv run python vertebrae_Unet/run/scripts/utils/evaluate_3d.py
 
 ```bash
 # 1. データ前処理
-uv run python vertebrae_Unet/data_preprocessing/data_pationing.py
-uv run python vertebrae_Unet/data_preprocessing/volume_cut/cut_train.py
-uv run python vertebrae_Unet/data_preprocessing/volume_cut/cut_test.py
-uv run python vertebrae_Unet/data_preprocessing/slice_data/slice_train_axial.py
-uv run python vertebrae_Unet/data_preprocessing/slice_data/slice_test_axial.py
+uv run python vertebrae_Unet/src/datamodule/data_pationing.py
+uv run python vertebrae_Unet/src/datamodule/volume_cut/cut_train.py
+uv run python vertebrae_Unet/src/datamodule/volume_cut/cut_test.py
+uv run python vertebrae_Unet/src/datamodule/slice_data/slice_train_axial.py
+uv run python vertebrae_Unet/src/datamodule/slice_data/slice_test_axial.py
 
 # 2. モデル学習(実装後)
 uv run python vertebrae_Unet/run/scripts/train/train.py
@@ -348,43 +339,6 @@ uv run python vertebrae_Unet/run/scripts/train/train.py debug=true max_epochs=3
 uv run python vertebrae_Unet/run/scripts/inference/inference.py test_case=1010
 ```
 
----
-
-## **出力ファイル構造**
-
-```
-vertebrae_Unet/
-├── data/
-│   ├── train/                    # 生データ(24症例)
-│   ├── test/                     # 生データ(8症例)
-│   ├── processed_train/          # 切り出し後(椎体別)
-│   │   └── inp{症例番号}/{椎体番号}/cut_*.nii
-│   ├── processed_test/           # 切り出し後(椎体別)
-│   ├── slice_train/axial/        # スライス画像(訓練)
-│   │   └── inp{症例番号}/{椎体番号}/slice_*.nii
-│   └── slice_test/axial/         # スライス画像(テスト)
-├── output/
-│   ├── train/                    # 学習結果
-│   │   └── {実験名}/
-│   │       ├── checkpoints/      # モデル重み
-│   │       └── logs/             # 学習ログ
-│   ├── inference/                # 推論結果
-│   │   └── {実験名}/
-│   │       ├── predictions_2d/   # 2D予測マスク
-│   │       ├── predictions_3d/   # 3D復元マップ
-│   │       └── metrics.csv       # 評価指標
-│   ├── visualization/            # 可視化結果
-│   │   ├── heatmaps/             # ヒートマップ
-│   │   ├── 3d_renders/           # 3Dレンダリング
-│   │   └── attention_maps/       # Attentionマップ
-│   └── wandb/                    # Weights & Biasログ
-└── logs/                         # 実行ログ
-    ├── nifti_cut_*.log
-    └── slice_extraction_*.log
-```
-
----
-
 ## **技術仕様**
 
 ### **データ仕様**
@@ -395,7 +349,7 @@ vertebrae_Unet/
 - **症例数**: 32症例(訓練24, テスト8)
 
 ### **モデル仕様**
-- **アーキテクチャ**: Attention U-Net + LSTM(オプション)
+- **アーキテクチャ**: Attention U-Net
 - **入力**: 単一スライス or 5スライスシーケンス
 - **出力**: 骨折セグメンテーションマスク(H×W)
 - **損失関数**: Dice Loss + BCE Loss + Adversarial Loss(オプション)
@@ -434,9 +388,9 @@ ls ./logs/
 ## **プロジェクトステータス**
 
 ### **実装済み**
-- ✅ データ分割 (data_pationing.py)
-- ✅ 椎体領域切り出し (volume_cut/)
-- ✅ Axialスライス作成 (slice_data/)
+- ✅ データ分割 (src/datamodule/data_pationing.py)
+- ✅ 椎体領域切り出し (src/datamodule/volume_cut/)
+- ✅ Axialスライス作成 (src/datamodule/slice_data/)
 
 ### **実装中**
 - 🚧 Attention U-Netモデル
