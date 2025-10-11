@@ -80,7 +80,7 @@ hu_windows = [
     {"name": "Bone Window", "min": -200, "max": 1800, "description": "骨組織強調（一般的）"},
     {"name": "Current Setting", "min": 0, "max": 1800, "description": "現在の設定"},
     {"name": "Soft Tissue", "min": -160, "max": 240, "description": "軟部組織"},
-    {"name": "Lung Window", "min": -1400, "max": -600, "description": "肺野"},
+    {"name": "Lung Window", "min": -300, "max": 800, "description": "骨折が含まれる範囲"},
     {"name": "Narrow Bone", "min": 200, "max": 1200, "description": "骨組織狭域"},
 ]
 
