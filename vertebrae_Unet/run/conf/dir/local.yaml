@@ -1,0 +1,30 @@
+# ====================================================================
+# Directory Configuration for Local Environment
+# ====================================================================
+
+# Base directory
+base_dir: /home/yuya/reseach/vertebrae/vertebrae_project/vertebrae_Unet
+
+# 現在はaxialの設定
+# Data directories
+data:
+  base: ${dir.base_dir}/data
+  train:
+    images: ${dir.data.base}/slice_train/axial
+    masks: ${dir.data.base}/slice_train/axial_mask
+    csv_pattern: ${dir.data.base}/slice_train/axial/*/fracture_labels_*.csv
+  test:
+    images: ${dir.data.base}/slice_test/axial
+    masks: ${dir.data.base}/slice_test/axial_mask
+    csv_pattern: ${dir.data.base}/slice_test/axial/*/fracture_labels_*.csv
+
+# Output directories
+output:
+  base: ${dir.base_dir}/output
+  train: ${dir.output.base}/train/axial
+  inference: ${dir.output.base}/inference/axial
+  visualization: ${dir.output.base}/visualization/axial
+
+# Model checkpoints
+checkpoints:
+  base: ${dir.output.base}/checkpoints/axial

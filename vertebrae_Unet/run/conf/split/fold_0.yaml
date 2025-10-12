@@ -1,0 +1,15 @@
+# ====================================================================
+# Fold 0 Split Configuration
+# ====================================================================
+
+fold_id: 0
+total_folds: 5
+
+# Patient-level split to prevent data leakage
+# This will be populated automatically during training
+# based on patient IDs extracted from the CSV files
+
+split_strategy: patient_level  # Ensure same patient doesn't appear in train and val
+
+# Validation ratio within training data
+val_ratio: 0.2

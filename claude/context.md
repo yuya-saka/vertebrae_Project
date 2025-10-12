@@ -8,16 +8,28 @@
 - 2D Axialスライス作成とラベルCSV生成
 - マスク画像スライス作成（train/test両方）
 
-**🔬 Phase 0.5: 探索的データ分析（進行中）** - 2025/10/10
+**✅ Phase 0.5: 探索的データ分析（完了）** - 2025/10/10 → 2025/10/12
 - ✅ 画像サイズ分布の可視化完了
 - ✅ HU値分布の分析完了
 - ✅ CT画像とマスクのオーバーレイ確認完了
 - ✅ HU値ウィンドウイング探索完了
-- 🎯 **データ前処理戦略の決定待ち**
+- ✅ **データ分布分析完了** - 2025/10/12
+  - クラス分布: Train 10.83%, Test 9.39%
+  - 骨折ピクセル比率: 平均 0.616%
+  - 椎体別骨折分布確認
+- ✅ **データ拡張戦略確定** - 2025/10/12
+  - オンライン拡張・クラス比率均衡化（50%目標）
+  - 椎体単位でスライス間連続性保持
 
-**⏸️ Phase 1: U-Netベースライン構築（保留中）**
+**✅ Phase 1: U-Netベースライン構築（実装完了）** - 2025/10/12
 - 目標: 単一スライス入力のAttention U-Netで学習・評価完了
-- 開始条件: データ前処理戦略の確定後
+- ✅ Hydra設定ファイル構築完了
+- ✅ Dataset/DataLoader実装完了（3チャンネル入力、オンライン拡張対応）
+- ✅ Attention Gate実装完了
+- ✅ Attention U-Net実装完了
+- ✅ LightningModule実装完了（損失関数、評価指標含む）
+- ✅ 学習スクリプト実装完了
+- 次: セットアップテスト → 学習実行
 
 ---
 
@@ -31,7 +43,7 @@
   - Height範囲: 確認済み
   - Width範囲: 確認済み
   - 椎体ごとのサイズ分布: 確認済み
-- **結論**: ゼロパディングでサイズ統一が必要
+- **結論**: 全画像リサイズ
 
 #### 2. HU値ウィンドウイング分析
 - **スクリプト**: `notebook/hu_value_exploration.py`
@@ -42,53 +54,140 @@
   - ✅ 5種類の正規化方法の比較
   - ✅ 骨折領域vs非骨折領域のHU値統計比較
 
-#### 3. 分析結果サマリー
+#### 3. データ分布分析 - 2025/10/12
+- **スクリプト**: `notebook/data_distribution_analysis.py`
+- **結果**:
+  - Train: 45,815スライス（骨折 10.83%）
+  - Test: 13,691スライス（骨折 9.39%）
+  - 骨折ピクセル比率: 平均 0.616% (Train), 0.553% (Test)
+  - 椎体別骨折率: V30-V32が高い（20-25%）、V27/V40が低い（1-3%）
+- **結論**:
+  - 深刻なクラス不均衡（骨折 10.8% vs 非骨折 89.2%）
+  - 骨折領域が極小（画像の0.6%）→ Attention機構必須
+  - 骨折スライスのオーバーサンプリング必要（約9倍）
+
+#### 4. 分析結果サマリー
 
 **推奨HU値ウィンドウ**:
 - **第1推奨**: [0, 1800] - 骨組織と骨折の視認性バランスが最良
-- **第2推奨**: [-200, 1800] - やや軟部組織も含む
+- **第2推奨**: [-200, 300] - やや軟部組織も含む
 - **代替案**: [200, 1200] - 高密度骨組織に特化
+  これらを3チャンネル入力にする->すべて香料する必要があるから
 
 **推奨正規化方法**:
 ```python
 normalized = np.clip(HU, 0, 1800) / 1800  # [0, 1]に正規化
 ```
 
-**推奨データ前処理パイプライン**:
+**確定データ前処理パイプライン** ✅:
 1. NIfTI画像読み込み
-2. HU値を[0, 1800]にクリップ
+2. HU値を[0, 1800],[-200, 300],[200, 1200]にクリップ
 3. [0, 1]に正規化
-4. アスペクト比維持のゼロパディングで統一サイズに
-5. Data Augmentation適用（回転、スケール、輝度）
+4. 全画像256×256にリサイズ
+5. Data Augmentation適用（オンライン、椎体単位）
+   - 回転: ±15度
+   - 平行移動: ±10ピクセル
+   - スケーリング: 0.95-1.05倍
+   - 水平反転: 適用
+   - 輝度: ±50 HU
+   - コントラスト: 0.95-1.05倍
+6. クラス比率均衡化（骨折スライス50%目標）
 
 ---
 
-## **次のアクション（要確認）**
 
-### **データ前処理戦略の最終決定が必要**
+---
 
-以下の項目を確定してからPhase 1に進みます：
+## **Phase 1: U-Netベースライン構築の実装詳細**
 
-1. **画像サイズ統一方法**
-   - [ ] 最大サイズを確認（exploratory_visualization.pyで確認済み）
-   - [ ] パディング方法の実装確認（center padding vs corner padding）
-   - [ ] リサイズは行わないことを確認（アスペクト比維持のため）
+### **実装完了コンポーネント** - 2025/10/12
 
-2. **HU値正規化の最終確認**
-   - [ ] [0, 1800] → [0, 1] の正規化で問題ないか
-   - [ ] データ拡張時の輝度調整範囲の決定
+#### 1. Hydra設定ファイル ✅
+- **場所**: `run/conf/`
+- **ファイル**:
+  - `config.yaml` - メイン設定
+  - `constants.yaml` - 定数定義（HU範囲、画像サイズ等）
+  - `dir/local.yaml` - ディレクトリパス
+  - `train.yaml` - 学習ハイパーパラメータ
+  - `model/attention_unet.yaml` - モデル設定
+  - `split/fold_0.yaml` - フォールド分割
+- **特徴**:
+  - 3チャンネルHU入力: [0,1800], [-200,300], [200,1200]
+  - 画像サイズ: 256×256
+  - オーバーサンプリング: 9倍（骨折スライス50%目標）
 
-3. **データ拡張戦略**
-   - [ ] 回転角度範囲: ±15度（推奨）
-   - [ ] スケール範囲: 0.9-1.1倍（推奨）
-   - [ ] 輝度調整: ±10%（推奨）
-   - [ ] その他の拡張手法: Elastic deformation検討
+#### 2. Dataset/DataLoader ✅
+- **場所**: `src/datamodule/`
+- **ファイル**:
+  - `dataset.py` - VertebralFractureDataset
+  - `dataloader.py` - VertebralFractureDataModule
+- **機能**:
+  - 3チャンネルHU入力生成
+  - オンラインデータ拡張（回転、平行移動、スケール、反転、輝度、コントラスト）
+  - 骨折スライスのオーバーサンプリング
+  - 患者レベルでのtrain/val分割（データリーケージ防止）
+  - 5-fold cross validation対応
 
-### **確定後のタスク**
+#### 3. モデル実装 ✅
+- **場所**: `src/model/`
+- **ファイル**:
+  - `attention_gate.py` - Attention Gate実装
+  - `attention_unet.py` - Attention U-Net実装
+- **アーキテクチャ**:
+  - エンコーダ: 4層（64→128→256→512）
+  - ボトルネック: 1024チャンネル
+  - デコーダ: 4層（Attention Gate付き）
+  - 入力: (B, 3, 256, 256)
+  - 出力: (B, 1, 256, 256)
+- **特徴**:
+  - Attention機構でスキップ接続を重み付け
+  - BatchNorm + Dropout
+  - Kaiming初期化
 
-1. Step 1: Hydra設定ファイル構築（constants.yamlにHU範囲等を記載）
-2. Step 2: データセット実装（決定した前処理を実装）
-3. Step 3以降: モデル実装へ進む
+#### 4. LightningModule ✅
+- **場所**: `src/modelmodule/`
+- **ファイル**:
+  - `model_module.py` - SegmentationModule
+  - `losses.py` - DiceLoss, CombinedLoss
+  - `metrics.py` - Dice, IoU, Precision, Recall, F1
+- **損失関数**: Dice Loss (0.5) + BCE Loss (0.5)
+- **Optimizer**: AdamW (lr=1e-4, weight_decay=1e-5)
+- **Scheduler**: ReduceLROnPlateau (monitor=val_dice)
+- **評価指標**: Dice, IoU, Precision, Recall, F1
+
+#### 5. 学習スクリプト ✅
+- **場所**: `run/scripts/train/train.py`
+- **機能**:
+  - Hydra設定読み込み
+  - DataModule/Model初期化
+  - W&Bロガー設定
+  - ModelCheckpoint（best/lastモデル保存）
+  - EarlyStopping（patience=10）
+  - 学習実行
+
+---
+
+### **次のステップ**
+
+1. **セットアップテスト**:
+   ```bash
+   cd vertebrae_Unet
+   python run/scripts/test_setup.py
+   ```
+
+2. **学習開始**:
+   ```bash
+   cd vertebrae_Unet
+   python run/scripts/train/train.py
+   ```
+
+3. **パラメータ変更例**:
+   ```bash
+   python run/scripts/train/train.py \
+     experiment.name=test_run \
+     training.batch_size=8 \
+     training.max_epochs=50
+   ```
 
 ---
 
@@ -106,8 +205,8 @@ normalized = np.clip(HU, 0, 1800) / 1800  # [0, 1]に正規化
 - [ ] `run/conf/model/unet.yaml` - U-Netモデル設定
 
 #### 技術仕様
-- HU範囲: 0-1800（constants.yamlで定義）
-- 画像サイズ: アスペクト比維持、ゼロパディングで統一
+- HU範囲: 3チャンネル入力（constants.yamlで定義）
+- 画像サイズ: 256×256リサイズ
 - フォールド数: 5-fold cross validation
 - W&B設定: プロジェクト名、エンティティ名
 
@@ -129,8 +228,8 @@ normalized = np.clip(HU, 0, 1800) / 1800  # [0, 1]に正規化
   - [ ] テストコード（入出力形状確認）
 
 #### 技術仕様
-- **入力**: (B, 1, H, W) - バッチ、チャンネル、高さ、幅
-- **出力**: (B, 1, H, W) - セグメンテーションマスク
+- **入力**: (B, 3, H, W) - バッチ、チャンネル、高さ、幅
+- **出力**: (B, 3, H, W) - セグメンテーションマスク
 - **エンコーダ**: Conv3x3 → BatchNorm → ReLU → MaxPool
 - **デコーダ**: ConvTranspose → Attention Gate → Concat → Conv
 - **Attention Gate**: スキップ接続に適用

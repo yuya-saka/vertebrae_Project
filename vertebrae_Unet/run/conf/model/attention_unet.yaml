@@ -1,0 +1,43 @@
+# ====================================================================
+# Attention U-Net Model Configuration
+# ====================================================================
+
+name: attention_unet
+
+# Architecture Settings
+architecture:
+  # Input/Output
+  in_channels: 3  # From constants.n_input_channels
+  out_channels: 1  # From constants.n_output_channels
+
+  # Encoder/Decoder Configuration
+  init_features: 64  # Initial number of features
+  depth: 4  # Number of encoder/decoder levels
+
+  # Feature dimensions at each level: [64, 128, 256, 512, 1024]
+  features:
+    - 64
+    - 128
+    - 256
+    - 512
+
+  bottleneck_features: 1024
+
+  # Attention Gate Settings
+  attention:
+    enabled: true
+    mode: additive  # additive or multiplicative
+
+  # Dropout
+  dropout: 0.1
+
+  # Batch Normalization
+  batch_norm: true
+
+  # Activation
+  activation: relu  # relu, leaky_relu, elu
+
+# Model Initialization
+initialization:
+  method: kaiming_normal
+  nonlinearity: relu

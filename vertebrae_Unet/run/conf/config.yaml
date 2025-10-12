@@ -1,0 +1,26 @@
+# ====================================================================
+# Main Configuration File for Attention U-Net Training
+# ====================================================================
+
+defaults:
+  - constants
+  - train
+  - dir: local
+  - model: attention_unet
+  - split: fold_0
+  - _self_
+
+# Experiment Configuration
+experiment:
+  name: attention_unet_baseline
+  description: "Attention U-Net baseline with 3-channel HU windows input"
+  tags:
+    - attention_unet
+    - baseline
+    - 3channel_input
+
+# Override configurations here if needed
+# Example:
+# training:
+#   batch_size: 32
+#   max_epochs: 150

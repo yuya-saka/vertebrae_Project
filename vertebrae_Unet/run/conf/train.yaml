@@ -1,0 +1,108 @@
+# ====================================================================
+# Training Hyperparameters Configuration
+# ====================================================================
+
+# Training Settings
+training:
+  max_epochs: 100
+  batch_size: 16
+  num_workers: 4
+  accumulate_grad_batches: 1
+
+  # GPU Settings
+  accelerator: gpu  # 'auto', 'gpu', 'cpu'
+  devices: [0]  # GPU number(s): 1, [0], [0,1], etc.
+
+  # Precision
+  precision: 32  # Use 16 for mixed precision training
+
+  # Gradient Clipping
+  gradient_clip_val: 1.0
+
+  # Logging
+  log_every_n_steps: 10
+
+  # Validation
+  val_check_interval: 1.0  # Check validation every epoch
+
+  # Random Seed
+  seed: 42
+
+# Optimizer Settings
+optimizer:
+  name: adamw
+  lr: 0.0001
+  weight_decay: 0.00001
+  betas: [0.9, 0.999]
+
+# Learning Rate Scheduler
+scheduler:
+  name: reduce_lr_on_plateau
+  mode: max
+  factor: 0.5
+  patience: 5
+  min_lr: 0.000001
+  monitor: val_optimal_f1  # Monitor F1-optimized threshold metrics
+
+# Loss Function
+# For small fracture regions (<1% of image), use 'focal_tversky' loss
+# For general segmentation, use 'combined' loss (Dice + BCE)
+loss:
+  loss_type: focal_tversky  # 'focal_tversky' or 'combined'
+
+  # ----- Focal Tversky Loss Configuration -----
+  # Recommended for highly imbalanced segmentation with small target regions
+
+  # Loss combination weights
+  focal_tversky_weight: 0.7  # Weight for Focal Tversky Loss
+  focal_weight: 0.3          # Weight for Focal Loss
+
+  # Tversky Loss parameters
+  tversky_alpha: 0.7   # Weight for false positives (higher = penalize FP more, reduce over-segmentation)
+  tversky_beta: 0.3    # Weight for false negatives (higher = penalize FN more, improve recall)
+  tversky_gamma: 0.75  # Focusing parameter for Focal Tversky (higher = focus on hard examples)
+
+  # Focal Loss parameters
+  focal_alpha: 0.25    # Weight for positive class (0.25 = give more weight to positive class)
+  focal_gamma: 2.0     # Focusing parameter for Focal Loss (higher = focus on hard negatives)
+
+  # Smoothing factor
+  smooth: 1.0
+
+  # ----- Combined Loss Configuration (Alternative) -----
+  # Uncomment and set loss_type: 'combined' to use Dice + BCE
+  # dice_weight: 0.5
+  # bce_weight: 0.5
+  # pos_weight: null  # Set to a value for class weighting in BCE
+
+# Early Stopping
+early_stopping:
+  monitor: val_optimal_f1  # Monitor F1-optimized threshold
+  patience: 20
+  mode: max
+  min_delta: 0.001
+
+# Model Checkpoint
+checkpoint:
+  monitor: val_optimal_f1  # Save best model based on F1-optimized threshold
+  mode: max
+  save_top_k: 3
+  save_last: true
+  filename: 'epoch={epoch:02d}-val_optimal_f1={val_optimal_f1:.4f}'
+
+# Threshold Optimization Settings
+threshold_optimization:
+  enabled: true
+  min_threshold: 0.01  # Minimum threshold to search
+  max_threshold: 0.95  # Maximum threshold to search
+  num_candidates: 95   # Number of threshold candidates to evaluate
+
+
+# axial実行用
+# Weights & Biases Configuration
+wandb:
+  project: segmentation-axial
+  entity: null  # Set your W&B entity here
+  name: null  # Will be set automatically based on experiment name
+  log_model: true
+  save_dir: ${dir.output.base}/wandb/axial/fold_0

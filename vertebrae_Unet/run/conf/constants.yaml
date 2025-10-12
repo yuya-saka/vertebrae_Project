@@ -1,0 +1,69 @@
+# ====================================================================
+# Constants Configuration for Attention U-Net Vertebral Fracture Segmentation
+# ====================================================================
+
+# HU Value Windows for 3-Channel Input
+hu_windows:
+  # Channel 1: General bone and fracture visibility
+  channel_1:
+    min: 0
+    max: 1800
+  # Channel 2: Soft tissue with bone
+  channel_2:
+    min: -200
+    max: 300
+  # Channel 3: High-density bone tissue
+  channel_3:
+    min: 200
+    max: 1200
+
+# Image Size Configuration
+image_size:
+  height: 256
+  width: 256
+
+# Vertebral Level Mapping (T4-L5)
+vertebral_levels:
+  - V27  # T4
+  - V28  # T5
+  - V29  # T6
+  - V30  # T7
+  - V31  # T8
+  - V32  # T9
+  - V33  # T10
+  - V34  # T11
+  - V35  # T12
+  - V36  # L1
+  - V37  # L2
+  - V38  # L3
+  - V39  # L4
+  - V40  # L5
+
+# Data Augmentation Parameters
+augmentation:
+  # Geometric Transformations (same for all slices in vertebra)
+  rotation_degrees: 15
+  translation_pixels: 10
+  scale_range: [0.95, 1.05]
+  horizontal_flip_prob: 0.5
+
+  # Intensity Transformations (independent per slice)
+  brightness_hu: 50
+  contrast_range: [0.95, 1.05]
+
+  # Noise
+  gaussian_noise_std: 0.01
+
+# Class Balancing
+class_balance:
+  target_fracture_ratio: 0.5  # Target 50% fracture slices in each batch
+  oversample_fracture: true
+  oversample_factor: 9  # Calculated from 10.83% -> 50%
+
+# Splits
+n_folds: 5
+test_size: 0.2  # For validation split within training data
+
+# Model Input/Output
+n_input_channels: 3  # 3 HU windows
+n_output_channels: 1  # Binary segmentation mask

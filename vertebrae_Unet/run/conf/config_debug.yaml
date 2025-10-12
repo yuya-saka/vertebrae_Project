@@ -1,0 +1,39 @@
+# ====================================================================
+# Debug Configuration File for Quick Testing
+# ====================================================================
+
+defaults:
+  - constants
+  - train
+  - dir: local
+  - model: attention_unet
+  - split: fold_0
+  - _self_
+
+# Experiment Configuration
+experiment:
+  name: debug_test
+  description: "Debug configuration for quick testing"
+  tags:
+    - debug
+    - test
+
+# Debug overrides
+training:
+  max_epochs: 3
+  batch_size: 2
+  num_workers: 2
+  log_every_n_steps: 1
+  val_check_interval: 1.0
+
+early_stopping:
+  patience: 10
+
+checkpoint:
+  save_top_k: 1
+
+wandb:
+  project: null  # Disable wandb for debug
+  entity: null
+  name: null
+  log_model: false
