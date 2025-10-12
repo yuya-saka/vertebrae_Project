@@ -48,11 +48,12 @@ n_input_channels: 3
 n_output_channels: 1
 training:
   max_epochs: 100
-  batch_size: 16
+  batch_size: 32
   num_workers: 4
   accumulate_grad_batches: 1
   accelerator: gpu
-  devices: 1
+  devices:
+  - 0
   precision: 32
   gradient_clip_val: 1.0
   log_every_n_steps: 10
@@ -105,7 +106,7 @@ wandb:
   log_model: true
   save_dir: ${dir.output.base}/wandb/axial/fold_0
 dir:
-  base_dir: /home/yuya/reseach/vertebrae/vertebrae_project/vertebrae_Unet
+  base_dir: /mnt/nfs1/home/yamamoto-hiroto/research/vertebrae_saka/vertebrae_Unet
   data:
     base: ${dir.base_dir}/data
     train:

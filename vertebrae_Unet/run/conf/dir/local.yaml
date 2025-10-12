@@ -3,7 +3,9 @@
 # ====================================================================
 
 # Base directory
-base_dir: /home/yuya/reseach/vertebrae/vertebrae_project/vertebrae_Unet
+base_dir: /mnt/nfs1/home/yamamoto-hiroto/research/vertebrae_saka/vertebrae_Unet
+
+#/home/yuya/reseach/vertebrae/vertebrae_project/vertebrae_Unet 家のPCパス
 
 # 現在はaxialの設定
 # Data directories

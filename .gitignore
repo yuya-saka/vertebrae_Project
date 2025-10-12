@@ -25,6 +25,7 @@
 wandb/
 prior_YOLO_file/
 data/
+output/
 
 #いったん無視するやつ
 *.pt

@@ -5,8 +5,8 @@
 # Training Settings
 training:
   max_epochs: 100
-  batch_size: 16
-  num_workers: 4
+  batch_size: 32
+  num_workers: 8
   accumulate_grad_batches: 1
 
   # GPU Settings
