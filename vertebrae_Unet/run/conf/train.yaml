@@ -14,7 +14,7 @@ training:
   devices: [0]  # GPU number(s): 1, [0], [0,1], etc.
 
   # Precision
-  precision: 32  # Use 16 for mixed precision training
+  precision: 16-mixed  # Mixed precision training for faster computation and lower memory usage
 
   # Gradient Clipping
   gradient_clip_val: 1.0
@@ -77,9 +77,9 @@ loss:
 
 # Early Stopping
 early_stopping:
-  monitor: val_optimal_f1  # Monitor F1-optimized threshold
+  monitor: val_loss
   patience: 20
-  mode: max
+  mode: min
   min_delta: 0.001
 
 # Model Checkpoint
@@ -95,7 +95,7 @@ threshold_optimization:
   enabled: true
   min_threshold: 0.01  # Minimum threshold to search
   max_threshold: 0.95  # Maximum threshold to search
-  num_candidates: 95   # Number of threshold candidates to evaluate
+  num_candidates: 50   # Number of threshold candidates to evaluate
 
 
 # axial実行用
