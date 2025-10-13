@@ -205,18 +205,18 @@ class FocalLoss(nn.Module):
         Returns:
             Focal loss value
         """
-        # Apply sigmoid to get probabilities
-        predictions = torch.sigmoid(predictions)
-
         # Flatten tensors
         predictions = predictions.view(-1)
         targets = targets.view(-1)
 
-        # Binary cross entropy
-        bce = F.binary_cross_entropy(predictions, targets, reduction='none')
+        # Binary cross entropy with logits (autocast-safe)
+        bce = F.binary_cross_entropy_with_logits(predictions, targets, reduction='none')
+
+        # Get probabilities for focal weight calculation
+        predictions_sigmoid = torch.sigmoid(predictions)
 
         # Focal weight
-        p_t = predictions * targets + (1 - predictions) * (1 - targets)
+        p_t = predictions_sigmoid * targets + (1 - predictions_sigmoid) * (1 - targets)
         focal_weight = torch.pow(1.0 - p_t, self.gamma)
 
         # Alpha weighting
