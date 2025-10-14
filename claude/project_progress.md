@@ -72,7 +72,7 @@
     - Attention Gate実装
     - U-Net本体実装（depth=4, init_features=64）
   - ✅ LightningModule実装完了
-    - 損失関数（Dice + BCE）
+    - 損失関数（focal Tversky loss）
     - 評価指標（Dice, IoU, Precision, Recall, F1）
   - ✅ 学習スクリプト実装完了
 
@@ -80,3 +80,20 @@
   - [ ] セットアップテストの実行
   - [ ] 学習の実行（fold 0から開始）
   - [ ] 学習結果の評価と分析
+
+
+### 2025/10/14
+- 学習段階での修正点
+   -　最適閾値探索実装(model_modul.py)のミスがある
+      - 閾値が学習の度に更新されていない
+      - 最適閾値決めは、PRAUCを最適かする
+   - やること
+   　まとめ(model_module.pyの修正点)
+     - validation_step で probabilities = sigmoid(predictions) を cpu() にして保存する（detach() 必須）。
+     - on_validation_epoch_end で 全プロセス分を集約（DDPなら all_gather）。
+     - 閾値探索は CPU上で numpy ベクトル化 して高速化。
+     - 最良閾値 best_threshold を見つけたら self.threshold と self.hparams に保存する（ログだけにしない）。
+     - メモリ管理に気を付ける（float16 / ダウンサンプリング / バッチ単位での集約など）。
+     - (任意)ModelCheckpoint を val_optimal_f1 でモニタするように設定する。
+     - PRAUCを最大化して最適閾値を更新させる
+     - model_module.pyを修正したことによる、他の依存関係があるコードへの影響の考慮と修正

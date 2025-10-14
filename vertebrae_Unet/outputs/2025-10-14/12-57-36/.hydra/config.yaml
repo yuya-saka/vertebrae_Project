@@ -1,0 +1,159 @@
+hu_windows:
+  channel_1:
+    min: 0
+    max: 1800
+  channel_2:
+    min: -200
+    max: 300
+  channel_3:
+    min: 200
+    max: 1200
+image_size:
+  height: 256
+  width: 256
+vertebral_levels:
+- V27
+- V28
+- V29
+- V30
+- V31
+- V32
+- V33
+- V34
+- V35
+- V36
+- V37
+- V38
+- V39
+- V40
+augmentation:
+  rotation_degrees: 15
+  translation_pixels: 10
+  scale_range:
+  - 0.95
+  - 1.05
+  horizontal_flip_prob: 0.5
+  brightness_hu: 50
+  contrast_range:
+  - 0.95
+  - 1.05
+  gaussian_noise_std: 0.01
+class_balance:
+  target_fracture_ratio: 0.5
+  oversample_fracture: true
+  oversample_factor: 9
+n_folds: 5
+test_size: 0.2
+n_input_channels: 3
+n_output_channels: 1
+training:
+  max_epochs: 2
+  batch_size: 2
+  num_workers: 2
+  accumulate_grad_batches: 4
+  accelerator: gpu
+  devices:
+  - 0
+  precision: 16-mixed
+  gradient_clip_val: 1.0
+  log_every_n_steps: 1
+  val_check_interval: 1.0
+  seed: 42
+optimizer:
+  name: adamw
+  lr: 0.0001
+  weight_decay: 1.0e-05
+  betas:
+  - 0.9
+  - 0.999
+scheduler:
+  name: reduce_lr_on_plateau
+  mode: max
+  factor: 0.5
+  patience: 5
+  min_lr: 1.0e-06
+  monitor: val_prauc
+loss:
+  loss_type: focal_tversky
+  focal_tversky_weight: 0.7
+  focal_weight: 0.3
+  tversky_alpha: 0.7
+  tversky_beta: 0.3
+  tversky_gamma: 0.75
+  focal_alpha: 0.25
+  focal_gamma: 2.0
+  smooth: 1.0
+early_stopping:
+  monitor: val_prauc
+  patience: 10
+  mode: max
+  min_delta: 0.001
+checkpoint:
+  monitor: val_prauc
+  mode: max
+  save_top_k: 1
+  save_last: true
+  filename: epoch={epoch:02d}-val_prauc={val_prauc:.4f}
+threshold_optimization:
+  enabled: true
+  min_threshold: 0.1
+  max_threshold: 0.9
+  num_candidates: 10
+wandb:
+  project: null
+  entity: null
+  name: null
+  log_model: false
+  save_dir: ${dir.output.base}/axial/fold_0
+dir:
+  base_dir: /mnt/nfs1/home/yamamoto-hiroto/research/vertebrae_saka/vertebrae_Unet
+  data:
+    base: ${dir.base_dir}/data
+    train:
+      images: ${dir.data.base}/slice_train/axial
+      masks: ${dir.data.base}/slice_train/axial_mask
+      csv_pattern: ${dir.data.base}/slice_train/axial/*/fracture_labels_*.csv
+    test:
+      images: ${dir.data.base}/slice_test/axial
+      masks: ${dir.data.base}/slice_test/axial_mask
+      csv_pattern: ${dir.data.base}/slice_test/axial/*/fracture_labels_*.csv
+  output:
+    base: ${dir.base_dir}/output
+    train: ${dir.output.base}/train/axial
+    inference: ${dir.output.base}/inference/axial
+    visualization: ${dir.output.base}/visualization/axial
+  checkpoints:
+    base: ${dir.output.base}/checkpoints/axial
+model:
+  name: attention_unet
+  architecture:
+    in_channels: 3
+    out_channels: 1
+    init_features: 64
+    depth: 4
+    features:
+    - 64
+    - 128
+    - 256
+    - 512
+    bottleneck_features: 1024
+    attention:
+      enabled: true
+      mode: additive
+    dropout: 0.1
+    batch_norm: true
+    activation: relu
+  initialization:
+    method: kaiming_normal
+    nonlinearity: relu
+split:
+  fold_id: 0
+  total_folds: 5
+  split_strategy: patient_level
+  val_ratio: 0.2
+experiment:
+  name: debug_test
+  description: Debug configuration for low VRAM GPU testing
+  tags:
+  - debug
+  - low_vram

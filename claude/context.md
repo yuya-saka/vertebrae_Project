@@ -29,6 +29,17 @@
 - ✅ Attention U-Net実装完了
 - ✅ LightningModule実装完了（損失関数、評価指標含む）
 - ✅ 学習スクリプト実装完了
+
+**✅ Phase 1.5: 学習設定の最適化（実装完了）** - 2025/10/14
+- ✅ PRAUC評価指標の実装（`metrics.py`）
+- ✅ 最適閾値探索の修正（`model_module.py`）
+  - validation_stepでprobabilitiesをCPUに保存（GPUメモリ効率化）
+  - on_validation_epoch_endでPRAUC計算とF1最大化による閾値最適化
+  - best_thresholdを`self.threshold`と`self.hparams.threshold`に保存
+  - DDP（分散学習）対応の全プロセス集約機能追加
+- ✅ 学習設定ファイル更新（`train.yaml`）
+  - モニタリング指標をval_optimal_f1 → val_praucに変更
+  - EarlyStoppingとModelCheckpointをval_praucベースに変更
 - 次: セットアップテスト → 学習実行
 
 ---
@@ -191,6 +202,112 @@ normalized = np.clip(HU, 0, 1800) / 1800  # [0, 1]に正規化
 
 ---
 
+## **Phase 1.5: 学習設定の最適化 詳細** - 2025/10/14
+
+### **実施した修正内容**
+
+#### 1. PRAUC評価指標の追加 ✅
+**ファイル**: `src/modelmodule/metrics.py`
+
+**実装内容**:
+- `pr_auc_score()` 関数を追加
+- Precision-Recallカーブの面積（PRAUC）を計算
+- クラス不均衡タスク（骨折10.8%）に適した評価指標
+- sklearn.metrics.aucを使用したトラペゾイド法による計算
+
+**技術仕様**:
+```python
+def pr_auc_score(predictions: torch.Tensor, targets: torch.Tensor) -> float:
+    # Sigmoid適用 → CPU移動 → numpy変換
+    # 予測スコアで降順ソート
+    # TP/FP累積カウント → Precision/Recall計算
+    # AUC計算（台形則）
+```
+
+#### 2. 最適閾値探索の修正 ✅
+**ファイル**: `src/modelmodule/model_module.py`
+
+**修正内容**:
+- **validation_step**:
+  - `torch.sigmoid(predictions)` でprobabilitiesを計算
+  - `.detach().cpu()` でCPUに移動（GPUメモリ効率化）
+  - logitsではなくprobabilitiesを保存
+
+- **on_validation_epoch_end**:
+  - 全プロセス集約（DDP対応）: `self.all_gather()`
+  - PRAUC計算: `pr_auc_score(all_probabilities, all_targets)`
+  - 閾値探索: F1スコア最大化で最適閾値決定
+  - **重要**: `self.threshold = best_threshold` でインスタンス変数更新
+  - **重要**: `self.hparams.threshold = best_threshold` でhparams保存
+  - ログ: `val_prauc`, `val_optimal_threshold`, `val_optimal_*`
+
+**修正理由**:
+- **問題1**: 閾値が更新されていなかった → `self.threshold`に反映
+- **問題2**: F1よりPRAUCが適切 → PRAUC計算追加
+- **問題3**: GPUメモリ不足リスク → CPU移動
+- **問題4**: DDP未対応 → all_gather実装
+
+#### 3. 学習設定ファイルの更新 ✅
+**ファイル**: `run/conf/train.yaml`
+
+**変更内容**:
+```yaml
+# Before
+scheduler:
+  monitor: val_optimal_f1
+checkpoint:
+  monitor: val_optimal_f1
+  filename: 'epoch={epoch:02d}-val_optimal_f1={val_optimal_f1:.4f}'
+early_stopping:
+  monitor: val_loss
+
+# After
+scheduler:
+  monitor: val_prauc  # ← PRAUC最大化
+checkpoint:
+  monitor: val_prauc  # ← PRAUC最大化
+  filename: 'epoch={epoch:02d}-val_prauc={val_prauc:.4f}'
+early_stopping:
+  monitor: val_prauc  # ← PRAUC最大化
+```
+
+### **期待される効果**
+
+1. **クラス不均衡への対応**
+   - PRAUCは不均衡データ（骨折10.8%）に適した評価指標
+   - F1スコアよりも少数クラスの検出性能を適切に評価
+
+2. **閾値の動的最適化**
+   - エポック毎に最適閾値を更新
+   - 学習進行に応じた閾値調整
+
+3. **メモリ効率の向上**
+   - GPUメモリに保持せずCPUで閾値探索
+   - 大規模バッチでの学習が可能
+
+4. **分散学習対応**
+   - 複数GPUでの学習時も正確な評価
+   - all_gatherで全プロセスのデータを集約
+
+### **技術的考慮事項**
+
+**PRAUC vs F1の使い分け**:
+- **PRAUC**: 閾値非依存、全体的な性能評価（モデル選択に使用）
+- **F1**: 閾値依存、閾値最適化に使用（各閾値候補でF1計算）
+- 本実装: PRAUCでモデル評価、F1で最適閾値探索
+
+**メモリ管理**:
+- validation_step: CPU保存（`detach().cpu()`）
+- on_validation_epoch_end: numpy変換（PRAUC計算）
+- threshold_candidates: 50点（デフォルト）
+
+**DDP動作**:
+- `self.trainer.world_size > 1` でDDP検出
+- `all_gather()` で全プロセス集約
+- `reshape()` で正規化
+
+---
+
 ## **Phase 1 実装計画: U-Netベースライン構築**
 
 ### **Step 1: Hydra設定ファイル構築** 📝
@@ -229,7 +346,7 @@ normalized = np.clip(HU, 0, 1800) / 1800  # [0, 1]に正規化
 
 #### 技術仕様
 - **入力**: (B, 3, H, W) - バッチ、チャンネル、高さ、幅
-- **出力**: (B, 3, H, W) - セグメンテーションマスク
+- **出力**: (B, 1, H, W) - セグメンテーションマスク
 - **エンコーダ**: Conv3x3 → BatchNorm → ReLU → MaxPool
 - **デコーダ**: ConvTranspose → Attention Gate → Concat → Conv
 - **Attention Gate**: スキップ接続に適用

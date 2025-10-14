@@ -12,7 +12,7 @@ defaults:
 
 # Experiment Configuration
 experiment:
-  name: attention_unet_baseline
+  name: attention_unet_baseline_fixed
   description: "Attention U-Net baseline with 3-channel HU windows input"
   tags:
     - attention_unet

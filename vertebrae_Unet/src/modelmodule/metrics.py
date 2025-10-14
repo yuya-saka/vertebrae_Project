@@ -4,6 +4,8 @@ Evaluation metrics for segmentation
 
 import torch
 import torch.nn.functional as F
+import numpy as np
+from sklearn.metrics import auc as compute_auc
 
 
 def dice_coefficient(predictions: torch.Tensor, targets: torch.Tensor, threshold: float = 0.5, smooth: float = 1.0) -> torch.Tensor:
@@ -151,6 +153,54 @@ def f1_score(predictions: torch.Tensor, targets: torch.Tensor, threshold: float 
     f1 = 2 * (precision * recall) / (precision + recall + smooth)
 
     return f1
+
+
+def pr_auc_score(predictions: torch.Tensor, targets: torch.Tensor) -> float:
+    """
+    Calculate Precision-Recall AUC (PRAUC) using trapezoidal rule.
+
+    Args:
+        predictions: Model predictions (B, 1, H, W) - probabilities [0, 1]
+        targets: Ground truth masks (B, 1, H, W) - binary {0, 1}
+
+    Returns:
+        PRAUC score
+    """
+    # Apply sigmoid if needed
+    if predictions.min() < 0 or predictions.max() > 1:
+        predictions = torch.sigmoid(predictions)
+
+    # Flatten and move to CPU
+    predictions_flat = predictions.view(-1).cpu().numpy()
+    targets_flat = targets.view(-1).cpu().numpy()
+
+    # Check if there are any positive samples
+    if targets_flat.sum() == 0:
+        return 0.0
+
+    # Sort by prediction score (descending)
+    sorted_indices = np.argsort(-predictions_flat)
+    sorted_targets = targets_flat[sorted_indices]
+
+    # Calculate cumulative TP and FP
+    tp_cumsum = np.cumsum(sorted_targets)
+    fp_cumsum = np.cumsum(1 - sorted_targets)
+
+    # Calculate precision and recall
+    total_positives = targets_flat.sum()
+    recall = tp_cumsum / total_positives
+    precision = tp_cumsum / (tp_cumsum + fp_cumsum)
+
+    # Sort recall and precision for AUC calculation
+    # Recall goes from 0 to 1, we need to sort it
+    sorted_recall_indices = np.argsort(recall)
+    sorted_recall = recall[sorted_recall_indices]
+    sorted_precision = precision[sorted_recall_indices]
+
+    # Calculate AUC using trapezoidal rule
+    prauc = compute_auc(sorted_recall, sorted_precision)
+
+    return float(prauc)
 
 
 def calculate_all_metrics(predictions: torch.Tensor, targets: torch.Tensor, threshold: float = 0.5) -> dict:

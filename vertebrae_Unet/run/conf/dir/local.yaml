@@ -5,7 +5,8 @@
 # Base directory
 base_dir: /mnt/nfs1/home/yamamoto-hiroto/research/vertebrae_saka/vertebrae_Unet
 
-#/home/yuya/reseach/vertebrae/vertebrae_project/vertebrae_Unet 家のPCパス
+# 家でのdebug環境用
+# base_dir: /home/yuya/reseach/vertebrae/vertebrae_project/vertebrae_Unet 
 
 # 現在はaxialの設定
 # Data directories
@@ -23,10 +24,10 @@ data:
 # Output directories
 output:
   base: ${dir.base_dir}/output
-  train: ${dir.output.base}/train/axial
-  inference: ${dir.output.base}/inference/axial
-  visualization: ${dir.output.base}/visualization/axial
+  train: ${dir.output.base}/train/axial/fold_0
+  inference: ${dir.output.base}/inference/axial/fold_0
+  visualization: ${dir.output.base}/visualization/axial/fold_0
 
 # Model checkpoints
 checkpoints:
-  base: ${dir.output.base}/checkpoints/axial
+  base: ${dir.output.base}/checkpoints/axial/fold_0

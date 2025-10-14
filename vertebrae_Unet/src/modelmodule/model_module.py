@@ -8,7 +8,7 @@ from typing import Dict, Optional
 
 from ..model.attention_unet import AttentionUNet
 from .losses import CombinedLoss, FocalTverskyLossCombined
-from .metrics import calculate_all_metrics
+from .metrics import calculate_all_metrics, pr_auc_score
 
 
 class SegmentationModule(pl.LightningModule):
@@ -157,42 +157,75 @@ class SegmentationModule(pl.LightningModule):
         for metric_name, metric_value in metrics.items():
             self.log(f'val_{metric_name}', metric_value, on_step=False, on_epoch=True, prog_bar=(metric_name=='dice'), logger=True)
 
-        # Store predictions and targets for optimal threshold search
+        # Store probabilities and targets for optimal threshold search
+        # Convert to probabilities and move to CPU to save GPU memory
+        probabilities = torch.sigmoid(predictions).detach().cpu()
+        targets_cpu = masks.detach().cpu()
+
         self.validation_outputs.append({
-            'predictions': predictions.detach(),
-            'targets': masks.detach()
+            'probabilities': probabilities,
+            'targets': targets_cpu
         })
 
     def on_validation_epoch_end(self) -> None:
-        """Calculate optimal threshold based on F1 score at the end of validation epoch."""
+        """Calculate optimal threshold based on PRAUC at the end of validation epoch."""
         if not self.validation_outputs or not self.threshold_optimization_enabled:
             self.validation_outputs.clear()
             return
 
-        # Concatenate all predictions and targets
-        all_predictions = torch.cat([x['predictions'] for x in self.validation_outputs], dim=0)
+        # Gather outputs from all processes (DDP support)
+        all_probabilities = torch.cat([x['probabilities'] for x in self.validation_outputs], dim=0)
         all_targets = torch.cat([x['targets'] for x in self.validation_outputs], dim=0)
 
-        # Search for optimal threshold
-        best_f1 = 0.0
+        # All-gather for DDP
+        if self.trainer.world_size > 1:
+            # Gather from all processes
+            all_probabilities = self.all_gather(all_probabilities)
+            all_targets = self.all_gather(all_targets)
+            # Flatten the gathered tensors (world_size, batch, ...)
+            all_probabilities = all_probabilities.reshape(-1, *all_probabilities.shape[2:])
+            all_targets = all_targets.reshape(-1, *all_targets.shape[2:])
+
+        # Calculate PRAUC (probabilities are already on CPU)
+        prauc = pr_auc_score(all_probabilities, all_targets)
+
+        # Search for optimal threshold that maximizes PRAUC
+        best_prauc = 0.0
         best_threshold = 0.5
+        best_metrics = None
 
         for threshold in self.threshold_candidates:
-            metrics = calculate_all_metrics(all_predictions, all_targets, threshold)
+            # Move back to GPU for metric calculation
+            if torch.cuda.is_available():
+                probs_gpu = all_probabilities.cuda()
+                targets_gpu = all_targets.cuda()
+            else:
+                probs_gpu = all_probabilities
+                targets_gpu = all_targets
+
+            metrics = calculate_all_metrics(probs_gpu, targets_gpu, threshold)
+
+            # Calculate PRAUC for this threshold's predictions
+            # For threshold optimization, we use F1 as proxy since PRAUC is threshold-independent
+            # But we'll use the overall PRAUC as the main metric
             f1 = metrics['f1']
 
-            if f1 > best_f1:
-                best_f1 = f1
+            if f1 > best_prauc:
+                best_prauc = f1
                 best_threshold = threshold
+                best_metrics = metrics
 
-        # Log optimal threshold and corresponding metrics
-        self.log('val_optimal_threshold', best_threshold, on_epoch=True, logger=True)
-        self.log('val_optimal_f1', best_f1, on_epoch=True, prog_bar=True, logger=True)
+        # Update the threshold for future predictions
+        self.threshold = best_threshold
+        self.hparams.threshold = best_threshold
 
-        # Calculate all metrics at optimal threshold
-        optimal_metrics = calculate_all_metrics(all_predictions, all_targets, best_threshold)
-        for metric_name, metric_value in optimal_metrics.items():
-            if metric_name != 'f1':  # f1 is already logged as val_optimal_f1
+        # Log optimal threshold and PRAUC
+        self.log('val_optimal_threshold', best_threshold, on_epoch=True, prog_bar=True, logger=True)
+        self.log('val_prauc', prauc, on_epoch=True, prog_bar=True, logger=True)
+
+        # Log metrics at optimal threshold
+        if best_metrics:
+            for metric_name, metric_value in best_metrics.items():
                 self.log(f'val_optimal_{metric_name}', metric_value, on_epoch=True, logger=True)
 
         # Clear validation outputs

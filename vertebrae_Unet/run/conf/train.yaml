@@ -42,7 +42,7 @@ scheduler:
   factor: 0.5
   patience: 5
   min_lr: 0.000001
-  monitor: val_optimal_f1  # Monitor F1-optimized threshold metrics
+  monitor: val_prauc  # Monitor Precision-Recall AUC
 
 # Loss Function
 # For small fracture regions (<1% of image), use 'focal_tversky' loss
@@ -84,25 +84,28 @@ early_stopping:
 
 # Model Checkpoint
 checkpoint:
-  monitor: val_optimal_f1  # Save best model based on F1-optimized threshold
+  monitor: val_prauc  # Save best model based on PRAUC
   mode: max
   save_top_k: 3
   save_last: true
-  filename: 'epoch={epoch:02d}-val_optimal_f1={val_optimal_f1:.4f}'
+  filename: 'epoch={epoch:02d}-val_prauc={val_prauc:.4f}'
 
 # Threshold Optimization Settings
 threshold_optimization:
   enabled: true
   min_threshold: 0.01  # Minimum threshold to search
-  max_threshold: 0.95  # Maximum threshold to search
+  max_threshold: 0.90  # Maximum threshold to search
   num_candidates: 50   # Number of threshold candidates to evaluate
 
 
 # axial実行用
 # Weights & Biases Configuration
 wandb:
-  project: segmentation-axial
+  project: segmentation-axial-fixed
   entity: null  # Set your W&B entity here
   name: null  # Will be set automatically based on experiment name
   log_model: true
-  save_dir: ${dir.output.base}/wandb/axial/fold_0
+  save_dir: ${dir.output.base}/axial/fold_0
+
+# cd vertebrae_Unet
+# uv run python run/scripts/train/train.py 

@@ -13,27 +13,48 @@ defaults:
 # Experiment Configuration
 experiment:
   name: debug_test
-  description: "Debug configuration for quick testing"
+  description: "Debug configuration for low VRAM GPU testing"
   tags:
     - debug
-    - test
+    - low_vram
 
-# Debug overrides
+# Debug overrides - Optimized for low VRAM
 training:
-  max_epochs: 3
-  batch_size: 2
-  num_workers: 2
-  log_every_n_steps: 1
-  val_check_interval: 1.0
+  max_epochs: 2              # Minimal epochs
+  batch_size: 2              # Very small batch for low VRAM
+  num_workers: 2             # Minimal workers
+  log_every_n_steps: 1       # Log every step
+  val_check_interval: 1.0    # Validate every epoch
+  accumulate_grad_batches: 4 # Effective batch_size = 2x4 = 8
+  accelerator: gpu
+  devices: [0]
+  precision: 16-mixed        # Mixed precision to reduce VRAM usage
+  gradient_clip_val: 1.0
 
+# Disable early stopping for debug
 early_stopping:
   patience: 10
 
+# Save only last model
 checkpoint:
   save_top_k: 1
+  save_last: true
+  monitor: val_prauc
+  mode: max
 
+# Disable W&B for debug
 wandb:
-  project: null  # Disable wandb for debug
+  project: null
   entity: null
   name: null
   log_model: false
+
+# Simplified threshold optimization for speed and memory
+threshold_optimization:
+  enabled: true
+  min_threshold: 0.1
+  max_threshold: 0.9
+  num_candidates: 10  # Reduced from 50 for speed
+
+# cd vertebrae_Unet
+# uv run python run/scripts/train/train.py --config-name=config_debug
