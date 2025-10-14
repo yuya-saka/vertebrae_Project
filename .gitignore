@@ -25,7 +25,9 @@
 wandb/
 prior_YOLO_file/
 data/
-output/
+vertebrae_Unet/output/
+vertebrae_Unet/outputs/
+lightning_logs/
 
 #いったん無視するやつ
 *.pt
