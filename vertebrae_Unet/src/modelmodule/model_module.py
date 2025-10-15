@@ -7,6 +7,7 @@ import pytorch_lightning as pl
 from typing import Dict, Optional
 
 from ..model.attention_unet import AttentionUNet
+from ..model.pretrained_unet import PretrainedUNet
 from .losses import CombinedLoss, FocalTverskyLossCombined
 from .metrics import calculate_all_metrics, pr_auc_score
 
@@ -35,18 +36,37 @@ class SegmentationModule(pl.LightningModule):
         # Save hyperparameters
         self.save_hyperparameters()
 
-        # Initialize model
-        self.model = AttentionUNet(
-            in_channels=model_config.get('in_channels', 3),
-            out_channels=model_config.get('out_channels', 1),
-            init_features=model_config.get('init_features', 64),
-            depth=model_config.get('depth', 4),
-            attention_mode=model_config.get('attention_mode', 'additive'),
-            dropout=model_config.get('dropout', 0.1),
-        )
+        # Initialize model based on _target_ in config
+        model_target = model_config.get('_target_', '')
 
-        # Initialize weights
-        self.model.initialize_weights()
+        if 'PretrainedUNet' in model_target or model_config.get('encoder_name'):
+            # Pre-trained U-Net with ImageNet backbone
+            self.model = PretrainedUNet(
+                encoder_name=model_config.get('encoder_name', 'resnet34'),
+                encoder_weights=model_config.get('encoder_weights', 'imagenet'),
+                in_channels=model_config.get('in_channels', 3),
+                classes=model_config.get('classes', 1),
+                architecture=model_config.get('architecture', 'unetplusplus'),
+                decoder_attention_type=model_config.get('decoder_attention_type', 'scse'),
+                encoder_depth=model_config.get('encoder_depth', 5),
+                decoder_channels=model_config.get('decoder_channels', None),
+            )
+            self.model_type = 'pretrained'
+            print(f"Initialized PretrainedUNet with {model_config.get('encoder_name', 'resnet34')} encoder")
+        else:
+            # Custom Attention U-Net (backward compatibility)
+            self.model = AttentionUNet(
+                in_channels=model_config.get('in_channels', 3),
+                out_channels=model_config.get('out_channels', 1),
+                init_features=model_config.get('init_features', 64),
+                depth=model_config.get('depth', 4),
+                attention_mode=model_config.get('attention_mode', 'additive'),
+                dropout=model_config.get('dropout', 0.1),
+            )
+            # Initialize weights for custom model
+            self.model.initialize_weights()
+            self.model_type = 'custom'
+            print(f"Initialized custom Attention U-Net")
 
         # Loss function - choose based on loss_config
         loss_type = loss_config.get('loss_type', 'combined')  # 'combined' or 'focal_tversky'
@@ -186,32 +206,29 @@ class SegmentationModule(pl.LightningModule):
             all_probabilities = all_probabilities.reshape(-1, *all_probabilities.shape[2:])
             all_targets = all_targets.reshape(-1, *all_targets.shape[2:])
 
-        # Calculate PRAUC (probabilities are already on CPU)
+        # Calculate PRAUC (threshold-independent metric based on probability scores)
         prauc = pr_auc_score(all_probabilities, all_targets)
 
-        # Search for optimal threshold that maximizes PRAUC
-        best_prauc = 0.0
+        # Move to device once before the loop for efficiency
+        device = self.device
+        all_probabilities = all_probabilities.to(device)
+        all_targets = all_targets.to(device)
+
+        # Search for optimal threshold that maximizes F1 score
+        # Note: PRAUC itself is threshold-independent, but we optimize threshold for F1
+        best_f1 = 0.0
         best_threshold = 0.5
         best_metrics = None
 
         for threshold in self.threshold_candidates:
-            # Move back to GPU for metric calculation
-            if torch.cuda.is_available():
-                probs_gpu = all_probabilities.cuda()
-                targets_gpu = all_targets.cuda()
-            else:
-                probs_gpu = all_probabilities
-                targets_gpu = all_targets
+            # Calculate metrics at this threshold
+            metrics = calculate_all_metrics(all_probabilities, all_targets, threshold)
 
-            metrics = calculate_all_metrics(probs_gpu, targets_gpu, threshold)
-
-            # Calculate PRAUC for this threshold's predictions
-            # For threshold optimization, we use F1 as proxy since PRAUC is threshold-independent
-            # But we'll use the overall PRAUC as the main metric
+            # Use F1 score for threshold optimization
             f1 = metrics['f1']
 
-            if f1 > best_prauc:
-                best_prauc = f1
+            if f1 > best_f1:
+                best_f1 = f1
                 best_threshold = threshold
                 best_metrics = metrics
 
@@ -280,20 +297,53 @@ class SegmentationModule(pl.LightningModule):
         """Configure optimizers and learning rate schedulers."""
         # Optimizer
         optimizer_name = self.optimizer_config.get('name', 'adamw').lower()
+        base_lr = self.optimizer_config.get('lr', 1e-4)
+        weight_decay = self.optimizer_config.get('weight_decay', 1e-5)
+        betas = self.optimizer_config.get('betas', (0.9, 0.999))
 
+        # Check if differential learning rate is enabled (for pretrained models)
+        use_differential_lr = self.optimizer_config.get('use_differential_lr', False)
+        encoder_lr_multiplier = self.optimizer_config.get('encoder_lr_multiplier', 0.1)
+
+        # Prepare parameter groups
+        if use_differential_lr and self.model_type == 'pretrained':
+            # Differential learning rates: lower LR for pretrained encoder
+            encoder_params = self.model.get_encoder_lr_params()
+            decoder_params = self.model.get_decoder_lr_params()
+
+            param_groups = [
+                {
+                    'params': encoder_params,
+                    'lr': base_lr * encoder_lr_multiplier,
+                    'name': 'encoder'
+                },
+                {
+                    'params': decoder_params,
+                    'lr': base_lr,
+                    'name': 'decoder'
+                }
+            ]
+            print(f"Using differential learning rates:")
+            print(f"  Encoder LR: {base_lr * encoder_lr_multiplier:.2e}")
+            print(f"  Decoder LR: {base_lr:.2e}")
+        else:
+            # Standard single learning rate for all parameters
+            param_groups = self.parameters()
+
+        # Create optimizer
         if optimizer_name == 'adamw':
             optimizer = torch.optim.AdamW(
-                self.parameters(),
-                lr=self.optimizer_config.get('lr', 1e-4),
-                weight_decay=self.optimizer_config.get('weight_decay', 1e-5),
-                betas=self.optimizer_config.get('betas', (0.9, 0.999)),
+                param_groups,
+                lr=base_lr,
+                weight_decay=weight_decay,
+                betas=betas,
             )
         elif optimizer_name == 'adam':
             optimizer = torch.optim.Adam(
-                self.parameters(),
-                lr=self.optimizer_config.get('lr', 1e-4),
-                weight_decay=self.optimizer_config.get('weight_decay', 1e-5),
-                betas=self.optimizer_config.get('betas', (0.9, 0.999)),
+                param_groups,
+                lr=base_lr,
+                weight_decay=weight_decay,
+                betas=betas,
             )
         else:
             raise ValueError(f"Unknown optimizer: {optimizer_name}")

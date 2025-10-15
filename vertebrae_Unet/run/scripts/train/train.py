@@ -83,15 +83,24 @@ def main(cfg: DictConfig):
     print("Initializing Model...")
     print("="*80)
 
-    model = SegmentationModule(
-        model_config={
+    # Build model_config based on model structure
+    # Support both custom Attention U-Net and pretrained models
+    model_config = OmegaConf.to_container(cfg.model, resolve=True)
+
+    # Fallback for old-style config (backward compatibility)
+    if 'architecture' in cfg.model and not isinstance(cfg.model.architecture, str):
+        # Old-style config structure
+        model_config.update({
             'in_channels': cfg.n_input_channels,
             'out_channels': cfg.n_output_channels,
             'init_features': cfg.model.architecture.init_features,
             'depth': cfg.model.architecture.depth,
             'attention_mode': cfg.model.architecture.attention.mode,
             'dropout': cfg.model.architecture.dropout,
-        },
+        })
+
+    model = SegmentationModule(
+        model_config=model_config,
         optimizer_config=OmegaConf.to_container(cfg.optimizer, resolve=True),
         scheduler_config=OmegaConf.to_container(cfg.scheduler, resolve=True),
         loss_config=OmegaConf.to_container(cfg.loss, resolve=True),

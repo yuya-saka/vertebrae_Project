@@ -92,7 +92,12 @@ class VertebralFractureDataset(Dataset):
         return combined
 
     def _get_image_path(self, row: pd.Series) -> Path:
-        """Construct image path from CSV row."""
+        """Get image path from CSV row - uses FullPath column if available."""
+        # Use FullPath from CSV if it exists (recommended)
+        if 'FullPath' in row and pd.notna(row['FullPath']):
+            return Path(row['FullPath'])
+
+        # Fallback: construct path manually
         case_id = f"inp{row['Case']}"
         vertebra = str(row['Vertebra'])
         slice_idx = f"slice_{row['SliceIndex']:03d}.nii"

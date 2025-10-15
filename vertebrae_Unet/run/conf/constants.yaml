@@ -10,12 +10,12 @@ hu_windows:
     max: 1800
   # Channel 2: Soft tissue with bone
   channel_2:
-    min: -200
+    min: -210
     max: 300
   # Channel 3: High-density bone tissue
   channel_3:
-    min: 200
-    max: 1200
+    min: 100
+    max: 500
 
 # Image Size Configuration
 image_size:

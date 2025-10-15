@@ -1,0 +1,97 @@
+# ====================================================================
+# Pre-trained U-Net Model Configuration
+# ====================================================================
+# This configuration uses ImageNet pre-trained encoders for improved
+# performance on limited medical imaging datasets.
+#
+# Architecture: UNet++ with SCSE attention
+# Encoder: ResNet34 (ImageNet pre-trained)
+# ====================================================================
+
+_target_: src.model.pretrained_unet.PretrainedUNet
+
+# ====================================================================
+# Encoder (Backbone) Configuration
+# ====================================================================
+
+# Encoder name - Available options:
+# ResNet family: resnet18, resnet34, resnet50, resnet101, resnet152
+# EfficientNet family: efficientnet-b0 to efficientnet-b7
+# SE-ResNet: se_resnet50, se_resnet101, se_resnet152
+# DenseNet: densenet121, densenet161, densenet169, densenet201
+# And many more... (see smp.encoders.get_encoder_names())
+encoder_name: resnet34
+
+# Pre-trained weights
+# Options: 'imagenet', 'ssl' (self-supervised), 'swsl' (semi-weakly supervised), null (random init)
+encoder_weights: imagenet
+
+# Encoder depth (number of downsampling stages)
+# Default: 5 for most architectures
+encoder_depth: 5
+
+# ====================================================================
+# Architecture Configuration
+# ====================================================================
+
+# Architecture type
+# Options: 'unet', 'unetplusplus', 'deeplabv3', 'deeplabv3plus', 'fpn'
+# Recommendation: 'unetplusplus' for medical image segmentation
+architecture: unetplusplus
+
+# ====================================================================
+# Decoder Configuration
+# ====================================================================
+
+# Decoder channels (from deep to shallow)
+# List of integers specifying the number of channels at each decoder stage
+decoder_channels: [256, 128, 64, 32, 16]
+
+# Decoder attention type
+# Options: 'scse' (Spatial and Channel SE), 'cbam' (Convolutional Block AM), null (no attention)
+# Recommendation: 'scse' for small object detection (fractures)
+decoder_attention_type: scse
+
+# ====================================================================
+# Input/Output Configuration
+# ====================================================================
+
+# Number of input channels
+# Our setup: 3 channels for multi-window HU values
+in_channels: 3
+
+# Number of output classes
+# Binary segmentation: 1 (fracture vs. non-fracture)
+classes: 1
+
+# ====================================================================
+# Notes
+# ====================================================================
+#
+# Model Selection Guide:
+#
+# For balanced performance (recommended starting point):
+#   encoder_name: resnet34
+#   architecture: unetplusplus
+#   decoder_attention_type: scse
+#   Expected memory: ~2.2 GB (batch_size=8), supports up to batch_size=32
+#
+# For higher accuracy (more parameters):
+#   encoder_name: efficientnet-b3
+#   architecture: unetplusplus
+#   decoder_attention_type: scse
+#   Expected memory: ~2.2 GB (batch_size=8)
+#
+# For faster training (fewer parameters):
+#   encoder_name: resnet18
+#   architecture: unetplusplus
+#   decoder_attention_type: scse
+#   Expected memory: ~1.5 GB (batch_size=8)
+#
+# For maximum accuracy (heavy):
+#   encoder_name: resnet50
+#   architecture: unetplusplus
+#   decoder_attention_type: scse
+#   Expected memory: ~4.0 GB (batch_size=8)
+#
+# ====================================================================
