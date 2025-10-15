@@ -184,10 +184,10 @@ if __name__ == "__main__":
     logger.info("=" * 60)
 
     current_file = Path(__file__).resolve()
-    PROJECT_ROOT = current_file.parent.parent.parent.parent  #4階層上がプロジェクトルート
-    train_dir = PROJECT_ROOT / "data/train"
-    output_train_dir = PROJECT_ROOT / "data/processed_train"
-
+    PROJECT_ROOT = current_file.parent.parent.parent  #3階層上がプロジェクトルート
+    train_dir = PROJECT_ROOT / "data/test"
+    output_train_dir = PROJECT_ROOT / "data/processed_test"
+    
     try:
         process_directory(train_dir, output_train_dir)
         logger.info("=" * 60)

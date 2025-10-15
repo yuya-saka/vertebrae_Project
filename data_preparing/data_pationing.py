@@ -19,10 +19,10 @@ logging.info("スクリプトを開始します。")
 
 # 入力ディレクトリと出力ディレクトリの設定
 current_file = Path(__file__).resolve()
-PROJECT_ROOT = current_file.parent.parent.parent.parent #4階層上がプロジェクトルート
+PROJECT_ROOT = current_file.parent.parent #2階層上がプロジェクトルート
 input_all = PROJECT_ROOT / "input_nii"
-output_dir_train = PROJECT_ROOT / "vertebrae_Unet/data/train"
-output_dir_test = PROJECT_ROOT / "vertebrae_Unet/data/test"
+output_dir_train = PROJECT_ROOT / "data/train"
+output_dir_test = PROJECT_ROOT / "data/test"
 
 # 出力ディレクトリを作成
 logging.info(f"出力ディレクトリを作成します: {output_dir_train}")
