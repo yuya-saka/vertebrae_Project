@@ -50,13 +50,16 @@
     (自分用:実装ごとに指令は見るべきディレクトり指定は変える)
 
 #### **プロジェクト構造**
+```
 PROJECT_ROOT/
 ├── claude/
 |    ├── YOLO/       # YOLOプロジェクトでの支持や管理
 |    ├── Unet/       # Unetプロジェクトの指示や進捗
+|    └── CLAUDE.md
 | 
 |── data_preparing   # dataの準備
 |
 ├── vertebrae_YOLO/  # YOLOプロジェクト
 │   
 └── vertebrae_Unet/  # Unetプロジェクト      
+```

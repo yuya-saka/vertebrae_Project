@@ -84,7 +84,7 @@ def parse_cut_file(file_path: str):
 # -----------------------------
 # NIfTI 切り出し
 # -----------------------------
-def _clip(start: int, end: int, maxv: int, margin: int = 1):
+def _clip(start: int, end: int, maxv: int, margin: int = 1): #marginをもっと大きくしても良い
     """範囲を margin 分だけ広げてクリップ"""
     return max(start - margin, 0), min(end + margin, maxv)
 
