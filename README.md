@@ -57,7 +57,8 @@ PROJECT_ROOT/
 |    ├── Unet/       # Unetプロジェクトの指示や進捗
 |    └── CLAUDE.md
 | 
-|── data_preparing   # dataの準備
+├── data_preparing   # dataの準備
+├── data             # 画像データ
 |
 ├── vertebrae_YOLO/  # YOLOプロジェクト
 │   

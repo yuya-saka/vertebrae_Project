@@ -48,3 +48,69 @@ CTの連続するスライス画像を「時系列データ」と捉え、**LSTM
 - **少数データでの効率的な学習手法の確立：** データ収集が困難な医療AI分野において、本研究で提案する「椎体一括学習」が新たな標準的手法となる可能性があります。
     
 - **新しい3次元医用画像解析手法の提示：** マルチオリエンテーション法、LSTM、最適化された3D統合を組み合わせた本アプローチは、他の部位や疾患の画像診断にも応用可能な汎用性の高い技術となることが期待されます。
+
+📁 プロジェクト構造(たたき台)
+```
+vertebrae_YOLO
+├── README.md                    # プロジェクト概要
+├── run/                         # 実行スクリプト・設定管理
+│   ├── conf/                   # Hydra設定ファイル
+│   │   ├── config.yaml         # メイン設定
+│   │   ├── train.yaml          # 学習設定
+|   |   ├── combine_metrics.yaml #評価指標結合設定
+│   │   ├── inference.yaml      # 推論設定
+│   │   ├── constants.yaml      # 定数定義
+│   │   ├── dir/
+│   │   │   └── local.yaml      # ディレクトリパス設定
+│   │   ├── model/
+│   │   │   ├── YOLO.yaml      # Attention U-Net設定
+│   │   └── split/
+│   │       ├── fold_0.yaml　　 # フォールド分割
+|   |       ├── fold_1.yaml
+|   |       ├── fold_1.yaml
+|   |       ├── fold_3.yaml
+|   |       └── fold_4.yaml
+│   └── scripts/                # 機能別スクリプト
+│       ├── train/　　　　　　　 # 学習関連
+│       │   └── train.py                 # 学習
+│       ├── inference/
+│       │   ├── inference.py             # 2D推論
+│       │   └── reconstruct_3d.py        # 3D復元とボクセル骨折確率格納
+│       ├── 3Dvisualization/
+│       │   └── visualize_3d.py          # 3Dレンダリング
+│       └── utils/
+│           ├── combine_metrics.py       # 各foldの評価指標確認、また平均化
+│           └── evaluate_3d.py           # 3Dでの最終評価
+├── src/                        # ソースコード
+│   ├── datamodule/            # データ前準備、ローダー
+│   │   ├── __init__.py
+|   |
+│   ├── modelmodule/           # モデルモジュール(損失関数や評価指標の計算、最適パラメータ探索設定などmodelの使い方の定義)
+│   │   ├── __init__.py
+│   │   └──  model_module.py     # 学習モジュール
+│   ├── models/                # アーキテクチャ定義
+│   │   ├── __init__.py
+|   |
+│   └── utils/                 # ユーティリティ(補助機能)
+│       └── __init__.py　　　　　　
+├── output/                     # 実験結果
+│   ├── train/                 # 学習結果
+|   |   └── {実験名}/
+|   |         └── axial/             #軸方向ごと
+│   │              ├── fold_0/
+│   │              ├── fold_1/
+│   │              └── ...
+│   ├── inference/             # 推論結果
+|   |   └── {実験名}/
+|   |         └── axial/             #軸方向ごと
+│   │              ├── fold_0/
+│   │              ├── fold_1/
+│   │              └── ...
+│   ├── visualization/         # 可視化結果
+│   │   └── 3d_renders/
+│   └── wandb/                 # W&Bログ
+└── notebooks/                  # 可視化や画像確認
+    ├── exploratory/           # 探索的分析
+    └── experiments/           # 実験記録
+
+```
