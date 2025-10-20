@@ -27,7 +27,7 @@ sys.path.append(str(project_root))
 
 # %%
 # データパスの設定
-DATA_DIR = project_root / "vertebrae_Unet" / "data"
+DATA_DIR = project_root / "data"
 SLICE_TRAIN_DIR = DATA_DIR / "slice_train" / "axial"
 PROCESSED_TRAIN_DIR = DATA_DIR / "processed_train"
 

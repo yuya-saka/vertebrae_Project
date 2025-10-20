@@ -33,7 +33,7 @@ sns.set_palette("husl")
 
 # %%
 # データパスの設定
-DATA_DIR = project_root / "vertebrae_Unet" / "data"
+DATA_DIR = project_root / "data"
 SLICE_TRAIN_DIR = DATA_DIR / "slice_train" / "axial"
 SLICE_TEST_DIR = DATA_DIR / "slice_test" / "axial"
 MASK_TRAIN_DIR = DATA_DIR / "slice_train" / "axial_mask"
