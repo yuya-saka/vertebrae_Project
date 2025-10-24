@@ -528,7 +528,7 @@ patient_folds = {
 
 ---
 
-#### **1-2. 連続スライス用DataLoader** (`src/datamodule/yolo_datamodule.py`)
+#### **1-2. 連続スライス用Dataset** (`src/dataset/yolo_dataset.py`)
 
 **データ構造**:
 ```python
@@ -549,26 +549,25 @@ sample = {
 ```python
 class VertebraeSequenceDataset(Dataset):
     """
-    連続スライスをシーケンスとして返すデータセット
+    連続スライスをシーケンスとして返すPyTorch Dataset
     """
-    def __init__(self, sequence_length=7, stride=1):
+    def __init__(self, data_root, split='train', sequence_length=7, stride=1):
         # スライディングウィンドウで連続スライスを抽出
         # 例: 椎体27に10スライスある場合
         #   - seq1: [0,1,2,3,4,5,6]
         #   - seq2: [1,2,3,4,5,6,7]  (stride=1)
         #   - seq3: [2,3,4,5,6,7,8]
-        pass
+        self.data_root = data_root
+        self.split = split
+        self.sequence_length = sequence_length
+        self.stride = stride
+
+    def __len__(self):
+        return len(self.sequences)
 
     def __getitem__(self, idx):
         # データ拡張: 回転、反転、明度調整 (全スライスに一貫して適用)
-        pass
-
-class VertebraeDataModule(LightningDataModule):
-    """
-    PyTorch Lightning DataModule
-    """
-    def setup(self, stage):
-        # 患者レベル分割に基づいてtrain/val作成
+        # YOLO形式ラベルの読み込み
         pass
 ```
 
@@ -578,8 +577,8 @@ class VertebraeDataModule(LightningDataModule):
 - **注意**: 連続スライス全体に同じ変換を適用 (一貫性保持)
 
 **実装ファイル**:
-- `vertebrae_YOLO/src/datamodule/yolo_datamodule.py`
-- 設定: `run/conf/data/yolo_sequence.yaml`
+- `vertebrae_YOLO/src/dataset/yolo_dataset.py`
+- 設定: `run/conf/data/yolo_data.yaml`
 
 **検証項目**:
 - [ ] シーケンスの連続性が保たれているか
@@ -627,34 +626,41 @@ class YOLOv8Baseline(nn.Module):
 
 ---
 
-#### **2-2. Lightning Module実装** (`src/modelmodule/yolo_module.py`)
+#### **2-2. 学習ユーティリティ実装** (`src/utils/trainer.py`)
 
 ```python
-class YOLOLightningModule(LightningModule):
+class Trainer:
     """
-    PyTorch Lightning学習モジュール
+    シンプルなPyTorchベースの学習ユーティリティ
     """
-    def __init__(self, model, lr=0.001):
-        super().__init__()
+    def __init__(self, model, train_loader, val_loader, optimizer, scheduler, device):
         self.model = model
-        self.lr = lr
+        self.train_loader = train_loader
+        self.val_loader = val_loader
+        self.optimizer = optimizer
+        self.scheduler = scheduler
+        self.device = device
 
-    def training_step(self, batch, batch_idx):
-        images, targets = batch
-        loss = self.model.compute_loss(images, targets)
-        self.log('train_loss', loss)
-        return loss
+    def train_epoch(self):
+        self.model.train()
+        total_loss = 0
+        for batch in self.train_loader:
+            images, targets = batch
+            images = images.to(self.device)
 
-    def validation_step(self, batch, batch_idx):
-        # mAP計算
-        detections = self.model(images)
-        metrics = compute_map(detections, targets)
-        self.log_dict(metrics)
+            self.optimizer.zero_grad()
+            loss = self.model.compute_loss(images, targets)
+            loss.backward()
+            self.optimizer.step()
 
-    def configure_optimizers(self):
-        optimizer = torch.optim.AdamW(self.parameters(), lr=self.lr)
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=100)
-        return [optimizer], [scheduler]
+            total_loss += loss.item()
+
+        return total_loss / len(self.train_loader)
+
+    def validate(self):
+        self.model.eval()
+        metrics = compute_map(self.model, self.val_loader, self.device)
+        return metrics
 ```
 
 ---
@@ -664,28 +670,57 @@ class YOLOLightningModule(LightningModule):
 ```python
 import hydra
 from omegaconf import DictConfig
+import torch
+from torch.utils.data import DataLoader
 
 @hydra.main(config_path="../../conf", config_name="config", version_base="1.2")
 def main(cfg: DictConfig):
-    # DataModule
-    datamodule = VertebraeDataModule(cfg.data)
+    # Device設定
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+    # Dataset
+    train_dataset = YOLODataset(cfg.data, split='train')
+    val_dataset = YOLODataset(cfg.data, split='val')
+
+    # DataLoader
+    train_loader = DataLoader(train_dataset, batch_size=cfg.data.batch_size,
+                             shuffle=True, num_workers=cfg.data.num_workers)
+    val_loader = DataLoader(val_dataset, batch_size=cfg.data.batch_size,
+                           shuffle=False, num_workers=cfg.data.num_workers)
 
     # Model
-    model = YOLOv8Baseline(cfg.model)
-    lightning_module = YOLOLightningModule(model, cfg.training.lr)
+    model = YOLOv8Baseline(cfg.model).to(device)
+
+    # Optimizer & Scheduler
+    optimizer = torch.optim.AdamW(model.parameters(), lr=cfg.training.lr,
+                                  weight_decay=cfg.training.weight_decay)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer,
+                                                            T_max=cfg.training.epochs)
 
     # Trainer
-    trainer = Trainer(
-        max_epochs=cfg.training.epochs,
-        callbacks=[
-            ModelCheckpoint(monitor='val_map', mode='max'),
-            EarlyStopping(monitor='val_map', patience=20)
-        ],
-        logger=WandbLogger(project='vertebrae_yolo')
-    )
+    trainer = Trainer(model, train_loader, val_loader, optimizer, scheduler, device)
 
-    # 学習実行
-    trainer.fit(lightning_module, datamodule)
+    # 学習ループ
+    best_map = 0.0
+    patience_counter = 0
+
+    for epoch in range(cfg.training.epochs):
+        train_loss = trainer.train_epoch()
+        val_metrics = trainer.validate()
+
+        # Checkpoint保存
+        if val_metrics['map'] > best_map:
+            best_map = val_metrics['map']
+            torch.save(model.state_dict(), f'output/best_model.pth')
+            patience_counter = 0
+        else:
+            patience_counter += 1
+
+        # Early Stopping
+        if patience_counter >= cfg.training.early_stopping_patience:
+            break
+
+        scheduler.step()
 ```
 
 **設定ファイル例** (`run/conf/train.yaml`):
@@ -714,7 +749,8 @@ python train.py split=fold_0  # Fold 0で学習
 ```
 
 **実装ファイル**:
-- `vertebrae_YOLO/run/scripts/train/train.py`
+- `vertebrae_YOLO/run/scripts/train/train.py` (シンプルなPyTorch学習ループ)
+- `vertebrae_YOLO/src/utils/trainer.py` (学習ユーティリティ)
 - 設定: `run/conf/train.yaml`, `run/conf/model/yolo_baseline.yaml`
 
 **検証項目**:
@@ -1287,16 +1323,332 @@ print('Best params:', study.best_params)
 
 | Phase | タスク | 状態 | 完了日 | 備考 |
 |-------|--------|------|--------|------|
-| Phase 1 | YOLO形式変換 | ⬜ 未着手 | - | - |
-| Phase 1 | DataLoader実装 | ⬜ 未着手 | - | - |
-| Phase 2 | ベースライン学習 | ⬜ 未着手 | - | - |
-| Phase 3 | LSTM統合 | ⬜ 未着手 | - | - |
-| Phase 4 | バックボーン最適化 | ⬜ 未着手 | - | - |
-| Phase 5 | 推論・評価 | ⬜ 未着手 | - | - |
-| Phase 6 | アブレーション実験 | ⬜ 未着手 | - | - |
+| Phase 1 | YOLO形式変換 | ✅ 完了 | 2025/10/20 | BBox座標ずれ・アフィン行列未適用の問題を修正完了。90,000+ファイル生成 |
+| Phase 1 | Dataset実装 | ✅ 完了 | 2025/10/20 | yolo_dataset.py - 3チャンネルHU処理対応 |
+| Phase 2 | YOLOモデル実装 | ✅ 完了 | 2025/10/20 | yolo_baseline.py - Ultralytics YOLOv8ラッパー |
+| Phase 2 | 学習ユーティリティ | ✅ 完了 | 2025/10/20 | trainer.py - カスタムトレーナー、データ拡張制御 |
+| Phase 2 | 学習スクリプト | ✅ 完了 | 2025/10/20 | train.py - Hydra設定管理、5-fold CV対応 |
+| Phase 2 | 設定ファイル | ✅ 完了 | 2025/10/20 | config.yaml, model/yolo_baseline.yaml, split/fold_*.yaml, hyp_custom.yaml |
+| Phase 2 | ベースライン学習 | ⬜ 未着手 | - | 実装完了、学習実行待ち |
+| Phase 3 | LSTM統合 | ⬜ 未着手 | - | ベースライン学習後に実装 |
+| Phase 4 | バックボーン最適化 | ⬜ 未着手 | - | EfficientNet/ResNet比較実験 |
+| Phase 5 | 推論・評価 | ⬜ 未着手 | - | 3D統合スクリプト |
+| Phase 6 | アブレーション実験 | ⬜ 未着手 | - | LSTM有無、スライス数最適化 |
 
 状態: ⬜ 未着手 / 🔄 進行中 / ✅ 完了
 
+**最新更新 (2025/10/20)**:
+- Phase 1-2の実装が完了し、学習準備が整いました
+- データセット: 90,638ファイル（画像+ラベル）が生成済み
+- カスタムトレーナーで骨折なしサンプルのデータ拡張を制御
+- W&B/TensorBoardログ対応完備
+- 次のステップ: Fold 0での学習実行と性能評価
+
 ---
 
-**最終更新日**: 2025/10/19
+## **最新の更新履歴**
+
+### 2025/10/20: 実装方針変更 - PyTorch Lightningを使わないシンプルな実装へ
+
+#### 変更理由
+- PyTorch Lightningによる抽象化が過度に複雑化
+- デバッグや制御の明確化のため、素のPyTorchに変更
+- Hydraは設定管理として維持（柔軟性のため）
+- Ultralyticsは維持（YOLOv8の実装として最適）
+
+#### ドキュメント修正
+- ✅ [README.md](../../vertebrae_YOLO/README.md): Lightning言及を削除、ディレクトリ構造を更新
+- ✅ [knowledge.md](knowledge.md): 実装計画をPyTorchベースの学習ループに変更
+- ✅ [memo.md](memo.md): Phase 2-3の実装計画を修正、進捗追跡を更新
+- ✅ [プロジェクトルートREADME.md](../../README.md): 技術スタック説明を更新
+
+#### 新しい実装計画
+**Phase 1: Dataset実装**
+- `src/dataset/yolo_dataset.py`: 標準的なPyTorch Dataset
+- 3チャンネルHU処理、患者レベル分割対応
+
+**Phase 2: モデル・学習実装**
+- `src/models/yolo_baseline.py`: YOLOv8モデル（Ultralytics使用）
+- `src/utils/trainer.py`: シンプルな学習ユーティリティ
+- `src/utils/metrics.py`: 評価指標計算
+- `run/scripts/train/train.py`: 素のPyTorchの学習ループ
+
+#### 次のステップ
+1. PyTorch Dataset実装（`yolo_dataset.py`）
+2. 学習ユーティリティ実装（`trainer.py`, `metrics.py`）
+3. 学習スクリプト実装（`train.py`）
+4. requirements.txtからPyTorch Lightning削除
+
+---
+
+### 2025/10/20: Phase 1-2 実装計画 - Dataset・モデル・学習スクリプト
+
+#### 実装項目
+
+**Phase 1: Dataset実装**
+- [yolo_dataset.py](../../vertebrae_YOLO/src/dataset/yolo_dataset.py) 実装予定
+  - 3チャンネルHUウィンドウ処理（Bone/Soft Tissue/Wide Window）
+  - 患者レベル5-fold分割対応
+  - データ拡張（回転、反転、明度調整）with Albumentations
+  - 標準的なPyTorch Dataset
+  - YOLO形式ラベル読み込み（マルチインスタンス対応）
+
+**Phase 2: モデル実装**
+- [yolo_baseline.py](../../vertebrae_YOLO/src/models/yolo_baseline.py) 実装予定
+  - YOLOv8n（CSPDarknetバックボーン）
+  - Ultralytics YOLO使用
+  - COCO事前学習済み重み対応
+  - 骨折検出（1クラス）
+
+- [trainer.py](../../vertebrae_YOLO/src/utils/trainer.py) 実装予定
+  - シンプルなPyTorch学習ループ
+  - mAP@0.5、mAP@0.5:0.95評価
+  - AdamW最適化器、Cosine Annealing LR
+  - Early Stopping、Checkpoint保存を自前実装
+
+**設定ファイル（Hydra）**
+- [config.yaml](../../vertebrae_YOLO/run/conf/config.yaml): メイン設定
+- [model/yolo_baseline.yaml](../../vertebrae_YOLO/run/conf/model/yolo_baseline.yaml): モデル設定
+- [data/yolo_data.yaml](../../vertebrae_YOLO/run/conf/data/yolo_data.yaml): データ設定（3チャンネルHU設定含む）
+- [split/fold_*.yaml](../../vertebrae_YOLO/run/conf/split/): 5-fold分割設定（fold_0～fold_4）
+  - 全30症例を5分割（各fold: train 24症例、val 6症例）
+
+**学習スクリプト**
+- [train.py](../../vertebrae_YOLO/run/scripts/train/train.py) 実装予定
+  - シンプルなPyTorchの学習ループ
+  - Hydraによる設定管理
+  - W&Bロギング対応（オプション）
+  - Checkpoint自動保存
+  - Early Stopping
+  - 再現性確保（シード固定）
+
+**その他**
+- [requirements.txt](../../vertebrae_YOLO/requirements.txt): 依存関係リスト
+- [README.md](../../vertebrae_YOLO/README.md): プロジェクト説明書
+
+#### プロジェクト構造（計画）
+
+```
+vertebrae_YOLO/
+├── src/
+│   ├── models/
+│   │   └── yolo_baseline.py          # YOLOv8モデル
+│   ├── dataset/
+│   │   └── yolo_dataset.py           # PyTorch Dataset（3チャンネルHU処理）
+│   └── utils/
+│       ├── trainer.py                # 学習ユーティリティ
+│       └── metrics.py                # 評価指標計算
+├── run/
+│   ├── conf/
+│   │   ├── config.yaml               # メイン設定
+│   │   ├── model/yolo_baseline.yaml  # モデル設定
+│   │   ├── data/yolo_data.yaml       # データ設定
+│   │   └── split/fold_*.yaml         # 5-fold分割（0-4）
+│   └── scripts/
+│       └── train/
+│           └── train.py              # シンプルなPyTorch学習スクリプト
+├── data_preparing/
+│   └── convert_to_yolo.py            ✅ データ変換（Phase 1で完了）
+├── requirements.txt                   # 依存関係（PyTorch Lightningを削除）
+└── README.md                          ✅ プロジェクト説明
+```
+
+#### 使用方法
+
+**環境構築**
+```bash
+cd vertebrae_YOLO
+pip install -r requirements.txt
+```
+
+**学習実行**
+```bash
+cd run/scripts/train
+
+# Fold 0で学習
+python train.py
+
+# 特定のFoldで学習
+python train.py split=fold_1
+
+# 設定のオーバーライド
+python train.py training.max_epochs=50 data.batch_size=32
+```
+
+**DataLoader動作確認**
+```bash
+python test_dataloader.py
+```
+
+#### 次のステップ
+
+**immediate（優先実装）**
+1. PyTorch Dataset実装（`yolo_dataset.py`）
+2. 学習ユーティリティ実装（`trainer.py`, `metrics.py`）
+3. 学習スクリプト実装（`train.py`）
+4. requirements.txtからPyTorch Lightning削除
+
+**short-term（1週間以内）**
+5. 実装完了後、動作確認
+6. Fold 0で学習実行
+7. W&B/TensorBoardで学習曲線確認
+
+**medium-term（2週間以内）**
+8. 5-fold CV実行
+9. ベースライン性能評価（mAP@0.5 > 0.5目標）
+10. Phase 3: LSTM統合の設計開始
+
+#### 重要な設計決定
+
+**3チャンネルHU処理（実装済み）**
+- R: Bone Window (WW=1400, WL=1100)
+- G: Soft Tissue Window (WW=400, WL=100)
+- B: Wide Window (WW=700, WL=150)
+- DataModuleで自動的に3チャンネル変換を実行
+
+**患者レベル分割（実装済み）**
+- 30症例を5-foldに分割
+- 各fold: train 24症例、val 6症例
+- データリーケージ防止（同一患者のスライスは同じfold）
+
+**実装方針**
+- Ultralyticsライブラリを活用してYOLOv8を簡潔に実装
+- シンプルなPyTorchの学習ループで明確な制御
+- Hydraで設定を柔軟に管理（コマンドラインオーバーライド対応）
+- Mixed Precision Training (FP16) でメモリ効率化
+- PyTorch Lightningは使用せず、複雑さを排除
+
+---
+
+### 2025/10/20 (最新): Phase 1-2 実装完了 - 学習準備完了
+
+#### 実装完了項目
+
+**Phase 1: データ準備（完了）**
+1. ✅ YOLO形式データ変換 - [convert_to_yolo.py](../../vertebrae_YOLO/data_preparing/convert_to_yolo.py)
+   - 90,638ファイル生成（画像+ラベル）
+   - マルチインスタンス対応（1スライスに複数骨折）
+   - BBox座標修正、アフィン行列対応済み
+
+2. ✅ PyTorch Dataset実装 - [yolo_dataset.py](../../vertebrae_YOLO/src/dataset/yolo_dataset.py)
+   - 3チャンネルHUウィンドウ処理（Bone/Soft Tissue/Wide Window）
+   - NIFTI画像読み込み
+   - YOLO形式ラベル読み込み
+
+**Phase 2: モデル・学習実装（完了）**
+3. ✅ YOLOv8ベースラインモデル - [yolo_baseline.py](../../vertebrae_YOLO/src/models/yolo_baseline.py)
+   - Ultralytics YOLOv8ラッパー
+   - 事前学習済み重み対応（COCO）
+   - CSPDarknetバックボーン
+
+4. ✅ カスタムトレーナー - [trainer.py](../../vertebrae_YOLO/src/utils/trainer.py)
+   - CustomYOLOv8Dataset: 骨折なしサンプルのデータ拡張を確率的に無効化
+   - CustomDetectionTrainer: Ultralytics DetectionTrainerを継承
+   - NIFTI→PNG変換の自動実行
+   - Hydra設定管理統合
+
+5. ✅ 学習スクリプト - [train.py](../../vertebrae_YOLO/run/scripts/train/train.py)
+   - Hydra設定管理（コマンドラインオーバーライド対応）
+   - 5-fold交差検証対応
+   - シード固定による再現性確保
+   - W&B/TensorBoardログ対応
+
+6. ✅ 設定ファイル群
+   - [config.yaml](../../vertebrae_YOLO/run/conf/config.yaml): メイン設定
+   - [model/yolo_baseline.yaml](../../vertebrae_YOLO/run/conf/model/yolo_baseline.yaml): モデル設定
+   - [constants/yolo_data.yaml](../../vertebrae_YOLO/run/conf/constants/yolo_data.yaml): データ設定（HUウィンドウ含む）
+   - [split/fold_*.yaml](../../vertebrae_YOLO/run/conf/split/): 5-fold分割（fold_0～4）
+   - [hyp_custom.yaml](../../vertebrae_YOLO/run/conf/hyp_custom.yaml): データ拡張・損失関数パラメータ
+
+#### 実装の特徴
+
+**データ拡張の工夫:**
+- 骨折ありサンプル: 積極的なデータ拡張（回転、反転、明度調整）
+- 骨折なしサンプル: データ拡張を確率的に無効化（不均衡対策）
+- CustomYOLOv8Datasetでラベルの有無に応じて動的に切り替え
+
+**3チャンネルHUウィンドウ:**
+- R (赤): Bone Window (min=400, max=1800) - 骨構造
+- G (緑): Soft Tissue Window (min=-100, max=300) - 軟部組織
+- B (青): Wide Window (min=-200, max=500) - 全体バランス
+
+**患者レベル分割:**
+- 30症例を5-foldに分割（各fold: train 24症例、val 6症例）
+- データリーケージ防止（同一患者のスライスは同じfold）
+
+#### 次のステップ
+
+**immediate（今すぐ実行可能）:**
+1. Fold 0で学習実行
+   ```bash
+   cd vertebrae_YOLO/run/scripts/train
+   uv run python train.py
+   ```
+2. W&B/TensorBoardで学習曲線確認
+3. mAP@0.5, mAP@0.5:0.95の評価
+
+**short-term（1週間以内）:**
+4. 5-fold交差検証の実行
+5. ベースライン性能の確立（mAP@0.5 > 0.5目標）
+6. 失敗ケースの分析
+
+**medium-term（2週間以内）:**
+7. Phase 3: LSTM統合の設計開始
+8. Phase 4: バックボーン比較実験（EfficientNet-B0/B1, ResNet-50）
+
+---
+
+### 2025/10/20: Phase 1 - YOLO形式変換完了と重大なバグ修正
+
+#### 設計変更: 3チャンネルHUウィンドウ入力の採用
+**決定事項:**
+- 3つの異なるHU値ウィンドウで処理した画像を3チャンネル（RGB）として入力
+  - R (赤): Bone Window (WW=1400, WL=1100) - 骨構造
+  - G (緑): Soft Tissue Window (WW=400, WL=100) - 軟部組織
+  - B (青): Wide Window (WW=700, WL=150) - 全体バランス
+
+**理由:**
+- 骨組織と軟部組織の情報を同時に活用可能
+- ImageNet事前学習済みバックボーン（RGB 3チャンネル）との整合性
+- 医療画像解析における標準的手法
+
+**実装への影響:**
+- `convert_to_yolo.py`の`normalize_and_pad_image()`を3チャンネル対応に修正予定
+- データ形状: [B, 1, H, W] → [B, 3, H, W]
+
+詳細は[improvements.md](improvements.md#2025/10/20-マルチウィンドウhu値による3チャンネル入力の採用)を参照
+
+#### 実装内容
+[vertebrae_YOLO/data_preparing/convert_to_yolo.py](../../vertebrae_YOLO/data_preparing/convert_to_yolo.py)の実装完了
+
+#### 修正した重大な問題
+詳細は[improvements.md](improvements.md)の「失敗した実装とその原因分析、修正点」セクションを参照
+
+**問題1: BBox座標のずれ（座標系の不一致）**
+- 原因: 変形前のマスクから座標計算 → 画像のみリサイズ → 座標系の不一致
+- 解決: 画像とマスク両方を先に256x256に変形 → 変形後のマスクからBBox抽出
+- 実装: [normalize_and_pad_mask()](../../vertebrae_YOLO/data_preparing/convert_to_yolo.py#L232-L274)関数を新規追加（最近傍補間）
+
+**問題2: 画像の傾き（アフィン行列の未適用）**
+- 原因: `np.asarray(nii.dataobj)`でアフィン行列を無視
+- 解決: `nii.get_fdata()`でアフィン行列を自動適用し、傾き補正
+- 実装: [load_nifti_slice()](../../vertebrae_YOLO/data_preparing/convert_to_yolo.py#L89-L101)関数を修正
+
+**副次的な修正:**
+- HU値保持: PILからscipyのzoomに変更（CT値範囲-1000～3000を保持）
+- マスク整数性担保: `get_fdata()`の浮動小数点出力を`np.round().astype(np.int32)`で整数化
+
+#### データ品質分析
+BBox品質検証ノートブック実装: [yolo_bbox_quality_analysis.py](../../vertebrae_YOLO/notebook/yolo_bbox_quality_analysis.py)
+- 全BBox座標の統計分析
+- サイズ分布・アスペクト比確認
+- 目視サンプリング用可視化
+
+#### 次のステップ
+- Phase 1残タスク: DataLoader実装（`yolo_datamodule.py`）
+- 連続スライス用のシーケンスデータローダー構築
+- Phase 2準備: YOLOベースライン学習環境の整備
+
+---
+
+**最終更新日**: 2025/10/20

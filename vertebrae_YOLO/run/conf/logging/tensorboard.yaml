@@ -1,0 +1,6 @@
+# TensorBoard Logging Configuration
+
+logger: tensorboard
+project_name: vertebrae_yolo
+experiment_name: yolo_baseline
+log_dir: output/train

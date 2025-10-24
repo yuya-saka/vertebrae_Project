@@ -1,0 +1,54 @@
+# Main Configuration for YOLO Training
+
+defaults:
+  - model: yolo_baseline
+  - constants: yolo_data
+  - split: fold_0
+  - logging: wandb  # tensorboard or wandb
+
+# Training settings
+training:
+  # Custom hyperparameters for augmentation
+  hyp: vertebrae_YOLO/run/conf/hyp_custom.yaml
+
+  # Optimization
+  lr0: 0.001
+  weight_decay: 0.0001
+  optimizer: AdamW
+
+  # Scheduler
+  warmup_epochs: 3
+
+  # Training duration
+  epochs: 100
+  patience: 20
+
+  # Device
+  device: 1
+
+  # Focal Loss settings (クラス不均衡対策)
+  use_focal_loss: true       # Focal Lossを使用するかどうか
+  focal_gamma: 2.0           # Focusing parameter（易しいサンプルの重み削減）
+  focal_alpha: 0.3           # Balancing factor（クラス不均衡補正、骨折30%想定）
+
+# Logging settings
+logging:
+  project_name: vertebrae_yolo_focalloss
+  experiment_name: yolo_baseline(focal_loss)
+  logger: wandb  # tensorboard or wandb
+  log_dir: output/train/axial
+
+# Checkpoint settings
+checkpoint:
+  save_top_k: 3
+  monitor: val/map_50
+  mode: max
+  save_last: true
+  dirpath: output/train/axial/${logging.experiment_name}/fold_${split.fold_id}
+  filename: 'epoch_{epoch:02d}_map_{val/map_50:.3f}'
+
+# Reproducibility
+seed: 42
+
+# Debug mode
+debug: false

@@ -20,10 +20,11 @@
 
    **【YOLO学習用データローダー】**
    - 目的: スライスレベルの骨折検出器を学習
-   - 1サンプル = 1枚のスライス画像
+   - 1サンプル = 1枚のスライス画像（3チャンネル入力）
    - 全症例・全椎体の全スライスを独立サンプルとして扱う
    - データ拡張: 回転、反転、明度調整、ランダムクロップ
-   - バッチ構成: [Batch_size, C, H, W] (例: [32, 1, 256, 256])
+   - バッチ構成: [Batch_size, C, H, W] (例: [32, 3, 256, 256])
+     - C=3: Bone Window, Soft Tissue Window, Wide Windowの3チャンネル
 
    **【LSTM学習用データローダー】**
    - 目的: 椎体レベルの時系列統合を学習
@@ -32,7 +33,8 @@
      - 長い場合: 中心部優先サンプリング or 均等間隔サンプリング
      - 短い場合: 後方パディング (最終スライス複製 or ゼロパディング)
    - **スライディングウィンドウは使用しない** (椎体全体を1サンプルとする)
-   - バッチ構成: [Batch_size, N_slices, C, H, W] (例: [4, 70, 1, 256, 256])
+   - バッチ構成: [Batch_size, N_slices, C, H, W] (例: [4, 70, 3, 256, 256])
+     - C=3: 各スライスが3チャンネル（Bone, Soft Tissue, Wide Window）
 
    **【共通事項】**
    - 患者レベル分割の厳守: 同一患者のスライスが train/val に跨がらない
@@ -200,7 +202,7 @@
 
 **Phase 3: 学習パイプライン実装** (優先度: 高)
 
-1. **PyTorch Lightning + Hydra構成**
+1. **PyTorchベースの学習ループ + Hydra構成**
    ```yaml
    model:
      # バックボーン設定（カスタマイズ可能）
@@ -222,6 +224,19 @@
      # num_classes: 14  # 椎体別分類 (T4~L5) - 将来的に拡張
 
    data:
+     # 入力画像設定
+     input_channels: 3  # Bone Window, Soft Tissue Window, Wide Window
+     hu_windows:
+       bone:
+         center: 1100
+         width: 1400
+       soft_tissue:
+         center: 100
+         width: 400
+       wide:
+         center: 150
+         width: 700
+
      # YOLO学習時のデータ設定
      yolo_training:
        batch_size: 32  # スライス単位のバッチ
@@ -271,8 +286,10 @@
 
 2. **学習スクリプト**
    - 5-fold Cross Validation: `run/scripts/train/train.py`
+   - シンプルなPyTorchの学習ループ
    - Checkpointing: Best model保存 (mAP基準)
    - Logging: W&B / TensorBoard
+   - Early Stopping、LR Schedulerを自前実装
 
 **Phase 4: 推論・評価パイプライン** (優先度: 高)
 
@@ -313,10 +330,11 @@ vertebrae_YOLO/
 │   ├── models/
 │   │   ├── yolo_lstm.py        # YOLO+LSTMモデル
 │   │   └── yolo_baseline.py   # ベースライン (LSTM無し)
-│   ├── datamodule/            # データ前準備、ロード
-│   │   └── 
-│   └── modelmodule/
-│       └── yolo_module.py      # Lightning Module
+│   ├── dataset/                # データセットクラス
+│   │   └── yolo_dataset.py     # PyTorch Dataset
+│   └── utils/
+│       ├── trainer.py          # 学習ユーティリティ
+│       └── metrics.py          # 評価指標計算
 ├── run/
 │   ├── conf/
 │   │   ├── config.yaml
@@ -324,7 +342,7 @@ vertebrae_YOLO/
 │   │   ├── model/yolo_lstm.yaml
 │   │   └── split/fold_0~4.yaml
 │   └── scripts/
-│       ├── train.py
+│       ├── train.py            # シンプルなPyTorch学習ループ
 │       ├── inference.py
 │       └── reconstruct_3d.py
 └── output/
@@ -426,6 +444,23 @@ vertebrae_YOLO/
 ---
 
 ## 設計決定の変更履歴
+
+### 2025/10/20 - 3チャンネルHUウィンドウ入力の採用
+
+**入力データ設計の変更:**
+- **決定**: 3つの異なるHU値ウィンドウで処理した画像を3チャンネル（RGB）として入力
+- **チャンネル構成**:
+  - R (赤): Bone Window (WW=1400, WL=1100) - 骨構造の可視化
+  - G (緑): Soft Tissue Window (WW=400, WL=100) - 軟部組織の可視化
+  - B (青): Wide Window (WW=700, WL=150) - 全体のバランス
+- **理由**:
+  - 骨組織と軟部組織の情報を同時に活用可能
+  - ImageNet事前学習済みバックボーン（RGB 3チャンネル）との整合性
+  - 医療画像解析における標準的手法で検出精度向上が期待できる
+- **実装への影響**:
+  - `convert_to_yolo.py`の`normalize_and_pad_image()`を修正
+  - データローダーのバッチ形状: [B, 3, H, W] (従来: [B, 1, H, W])
+  - YOLOv8モデルはデフォルトで3チャンネル対応のため変更不要
 
 ### 2025/10/19 - アーキテクチャ決定とバックボーン選択肢の追加
 

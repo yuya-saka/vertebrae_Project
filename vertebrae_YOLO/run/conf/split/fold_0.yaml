@@ -1,0 +1,38 @@
+# 5-Fold Cross Validation - Fold 0
+# 患者レベル分割（データリーケージ防止）
+# 全30症例: train 24症例 / val 6症例
+
+fold_id: 0
+train_patients:
+  - inp1003
+  - inp1015
+  - inp1017
+  - inp1025
+  - inp1027
+  - inp1030
+  - inp1035
+  - inp1038
+  - inp1039
+  - inp1043
+  - inp1045
+  - inp1046
+  - inp1047
+  - inp1049
+  - inp1052
+  - inp1055
+  - inp1059
+  - inp1060
+  - inp1061
+  - inp1062
+  - inp1067
+  - inp1069
+  - inp1070
+  - inp1073
+
+val_patients:
+  - inp1074
+  - inp1075
+  - inp1077
+  - inp1080
+  - inp1082
+  - inp1083

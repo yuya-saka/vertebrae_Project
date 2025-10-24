@@ -1,0 +1,98 @@
+model:
+  name: yolo_baseline
+  variant: yolov8n
+  num_classes: 1
+  pretrained: true
+  input_channels: 3
+  img_size: 256
+data:
+  data_dir: data/yolo_format
+  view: axial
+  split: train
+  image_size: 256
+  input_channels: 3
+  hu_windows:
+    bone:
+      min: 0
+      max: 1800
+    soft_tissue:
+      min: -100
+      max: 300
+    wide:
+      min: -200
+      max: 500
+  batch_size: 32
+  num_workers: 4
+  augmentation: true
+  num_classes: 1
+split:
+  fold_id: 0
+  train_patients:
+  - inp1003
+  - inp1015
+  - inp1017
+  - inp1025
+  - inp1027
+  - inp1030
+  - inp1035
+  - inp1038
+  - inp1039
+  - inp1043
+  - inp1045
+  - inp1046
+  - inp1047
+  - inp1049
+  - inp1052
+  - inp1055
+  - inp1059
+  - inp1060
+  - inp1061
+  - inp1062
+  - inp1067
+  - inp1069
+  - inp1070
+  - inp1073
+  val_patients:
+  - inp1074
+  - inp1075
+  - inp1077
+  - inp1080
+  - inp1082
+  - inp1083
+logging:
+  logger: tensorboard
+  project_name: vertebrae_yolo
+  experiment_name: yolo_baseline
+  log_dir: output/train
+  wandb:
+    entity: null
+    tags:
+    - yolov8
+    - vertebrae
+    - fracture_detection
+    - fold_0
+    notes: YOLOv8 baseline for vertebrae fracture detection
+    log_freq: 10
+    save_code: true
+    save_model: true
+training:
+  lr: 0.001
+  weight_decay: 0.0001
+  optimizer: AdamW
+  scheduler_type: cosine
+  warmup_epochs: 3
+  max_epochs: 1
+  early_stopping_patience: 20
+  accelerator: gpu
+  devices:
+  - 0
+  precision: 16
+checkpoint:
+  save_top_k: 3
+  monitor: val/map_50
+  mode: max
+  save_last: true
+  dirpath: output/train/axial/${logging.experiment_name}/fold_${split.fold_id}
+  filename: epoch_{epoch:02d}_map_{val/map_50:.3f}
+seed: 42
+debug: false

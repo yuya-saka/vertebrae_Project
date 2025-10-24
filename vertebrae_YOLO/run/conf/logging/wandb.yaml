@@ -1,0 +1,23 @@
+# W&B Logging Configuration
+
+logger: wandb
+project_name: vertebrae_yolo_axial
+experiment_name: yolo_baseline_1
+log_dir: output/train/axial
+
+# W&B specific settings
+wandb:
+  entity: null  # W&Bのユーザー名またはチーム名（nullの場合はデフォルトユーザー）
+  tags:
+    - yolov8
+    - vertebrae
+    - fracture_detection
+    - fold_0  # foldごとに変更
+  notes: "YOLOv8 baseline for vertebrae fracture detection"
+
+  # ログ頻度
+  log_freq: 10  # 何ステップごとにログするか
+
+  # モデルチェックポイントをW&Bにアップロード
+  save_code: true  # コードも保存
+  save_model: true  # モデルをW&Bに保存

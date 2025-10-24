@@ -1,0 +1,8 @@
+# YOLOv8 Baseline Model Configuration
+
+name: yolo_baseline
+variant: yolov8n  # yolov8n, yolov8s, yolov8m, yolov8l, yolov8x
+num_classes: 1  # 骨折検出（二値分類）
+pretrained: true  # COCO事前学習済み重みを使用
+input_channels: 3  # 3チャンネル（Bone/Soft Tissue/Wide Window）
+img_size: 256

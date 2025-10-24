@@ -1,0 +1,31 @@
+# YOLO Data Configuration
+
+# Data paths
+data_dir: data/yolo_format
+view: axial
+split: train
+
+# Image settings
+image_size: 256
+input_channels: 3  # 3-channel HU windows
+
+# HU window settings (3-channel input)
+# min/max形式で指定（最小値と最大値を直接設定）
+hu_windows:
+  bone:
+    min: 0    # 最小HU値 (従来: center-width/2 = 1100-700 = 400)
+    max: 1800   # 最大HU値 (従来: center+width/2 = 1100+700 = 1800)
+  soft_tissue:
+    min: -100   # (従来: 100-200 = -100)
+    max: 300    # (従来: 100+200 = 300)
+  wide:
+    min: -200   # (従来: 150-350 = -200)
+    max: 500    # (従来: 150+350 = 500)
+
+# DataLoader settings
+batch_size: 32
+num_workers: 4
+augmentation: true  # Data augmentation for training
+
+# Class settings
+num_classes: 1  # 骨折/非骨折（二値分類）
