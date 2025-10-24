@@ -55,10 +55,11 @@ PROJECT_ROOT/
 ├── claude/
 |    ├── YOLO/       # YOLOプロジェクトでの支持や管理
 |    ├── Unet/       # Unetプロジェクトの指示や進捗
+|    ├── notebook/
 |    └── CLAUDE.md
 | 
-├── data_preparing   # dataの準備
-├── data             # 画像データ
+├── data_preparing/   # dataの準備
+├── data/             # 画像データ
 |
 ├── vertebrae_YOLO/  # YOLOプロジェクト
 │   

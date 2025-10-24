@@ -1,5 +1,6 @@
 ### 最初にどの軸をスライスするか、またどこのフォルダにつくるのか、要確認!!!!!!!!!!!!!!!!!!!!!
 
+
 """
 NIfTI スライス抽出スクリプト
 機能:
@@ -7,8 +8,6 @@ NIfTI スライス抽出スクリプト
 * 骨折ラベル情報をCSVに保存
 * 詳細なログ出力機能
 """
-
-# テストデータ用
 import numpy as np
 import pandas as pd
 import nibabel as nib
@@ -58,9 +57,9 @@ logger = setup_logger()
 # ----------------------- 設定 -----------------------
 #実行前に必ず確認する
 current_file = Path(__file__).resolve()
-PROJECT_ROOT = current_file.parent.parent.parent  #3階層上がプロジェクトルート
-input_base_dir  = PROJECT_ROOT / "data/processed_test"
-output_base_dir = PROJECT_ROOT / "data/slice_test/axial"
+PROJECT_ROOT = current_file.parent.parent.parent.parent  #4階層上がプロジェクトルート
+input_base_dir  = PROJECT_ROOT / "data/processed_train"
+output_base_dir = PROJECT_ROOT / "data/slice_train/coronal" # <--- 変更: "axial" から "coronal" へ
 target_cases    = list(range(1003, 1085))
 
 def process_vertebra_directory(
@@ -78,33 +77,37 @@ def process_vertebra_directory(
         ct_data = ct_img.get_fdata()
         annotation_bin = (annotation_img.get_fdata() != 0).astype(np.uint8)
         
-        axis_name = "axial"    #軸名は必ず確認する
+        # 軸名は必ず確認する
+        
+        axis_name = "coronal"  # <--- 変更: "axial" から "coronal" へ
+        
+        
         H, W, D = map(int, ct_data.shape)
         
-        logger.debug(f"  椎体: {vertebra_dir.name}, 形状: ({H}, {W}, {D})")
+        logger.debug(f"   椎体: {vertebra_dir.name}, 形状: ({H}, {W}, {D})")
         
         output_dir = output_base_dir / inp_dir_name / vertebra_dir.name
         output_dir.mkdir(parents=True, exist_ok=True)
         
         fracture_slice_count = 0
         
-        # スライス毎に処理
-        for z in range(D):
-            slice_data = ct_data[:, :, z].astype(np.float32)
-            has_fract = bool(annotation_bin[:, :, z].any())
+        # スライス毎に処理 (Coronal: Y軸 (W) に沿ってスライス)
+        for y in range(W): # <--- 変更: (z in range(D)) から
+            slice_data = ct_data[:, y, :].astype(np.float32)     # <--- 変更: [:, :, z] から
+            has_fract = bool(annotation_bin[:, y, :].any()) # <--- 変更: [:, :, z] から
             fracture_label = int(has_fract)
             
             if has_fract:
                 fracture_slice_count += 1
             
             slice_nifti = nib.Nifti1Image(slice_data, affine=ct_img.affine)
-            slice_path = output_dir / f"slice_{z:03d}.nii"
+            slice_path = output_dir / f"slice_{y:03d}.nii"   # <--- 変更: (z:03d) から
             nib.save(slice_nifti, str(slice_path))
             
             folder_results.append({
                 "FullPath": str(slice_path),
                 "Vertebra": vertebra_dir.name,
-                "SliceIndex": z,
+                "SliceIndex": y, # <--- 変更: (z) から
                 "Fracture_Label": fracture_label,
                 "Case": case_number,
                 "Axis": axis_name,
@@ -114,10 +117,10 @@ def process_vertebra_directory(
                 "InputCTPath": str(vertebra_dir / f"cut_inp{case_number}.nii.gz"),
             })
         
-        logger.info(f"    {vertebra_dir.name}: {D}スライス抽出 (骨折: {fracture_slice_count}スライス)")
+        logger.info(f"     {vertebra_dir.name}: {W}スライス抽出 (骨折: {fracture_slice_count}スライス)") # <--- 変更: (D) から
         
     except Exception as e:
-        logger.error(f"  椎体処理エラー: {vertebra_dir.name} - {e}", exc_info=True)
+        logger.error(f"   椎体処理エラー: {vertebra_dir.name} - {e}", exc_info=True)
     
     return folder_results
 
@@ -150,12 +153,12 @@ def process_case_directory(inp_dir: Path, output_base_dir: Path, target_cases: L
         ct_path = vertebra_dir / f"cut_inp{case_number}.nii.gz"
         
         if not annotation_path.exists():
-            logger.warning(f"  アノテーションファイルが見つかりません: {annotation_path}")
+            logger.warning(f"   アノテーションファイルが見つかりません: {annotation_path}")
             skipped_count += 1
             continue
         
         if not ct_path.exists():
-            logger.warning(f"  CTファイルが見つかりません: {ct_path}")
+            logger.warning(f"   CTファイルが見つかりません: {ct_path}")
             skipped_count += 1
             continue
         
@@ -173,7 +176,7 @@ def process_case_directory(inp_dir: Path, output_base_dir: Path, target_cases: L
             vertebra_count += 1
             
         except Exception as e:
-            logger.error(f"  椎体 {vertebra_dir.name} の読み込みエラー: {e}")
+            logger.error(f"   椎体 {vertebra_dir.name} の読み込みエラー: {e}")
             skipped_count += 1
     
     # CSV 保存
@@ -186,9 +189,9 @@ def process_case_directory(inp_dir: Path, output_base_dir: Path, target_cases: L
         total_slices = len(df)
         
         logger.info(f"完了: {inp_dir.name}")
-        logger.info(f"  椎体数: {vertebra_count}, スキップ: {skipped_count}")
-        logger.info(f"  総スライス数: {total_slices}, 骨折スライス: {fracture_count}")
-        logger.info(f"  CSV保存: {csv_path}")
+        logger.info(f"   椎体数: {vertebra_count}, スキップ: {skipped_count}")
+        logger.info(f"   総スライス数: {total_slices}, 骨折スライス: {fracture_count}")
+        logger.info(f"   CSV保存: {csv_path}")
         return True
     else:
         logger.warning(f"{inp_dir.name}: 処理可能なデータがありませんでした")
@@ -228,9 +231,9 @@ if __name__ == "__main__":
         
         logger.info("=" * 60)
         logger.info("全ケース処理完了")
-        logger.info(f"  処理対象: {total_cases}ケース")
-        logger.info(f"  成功: {success_cases}ケース")
-        logger.info(f"  失敗/スキップ: {failed_cases}ケース")
+        logger.info(f"   処理対象: {total_cases}ケース")
+        logger.info(f"   成功: {success_cases}ケース")
+        logger.info(f"   失敗/スキップ: {failed_cases}ケース")
         logger.info("=" * 60)
         
     except KeyboardInterrupt:

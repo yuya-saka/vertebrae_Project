@@ -1,11 +1,11 @@
 ### 最初にどの軸をスライスするか、またどこのフォルダにつくるのか、要確認!!!!!!!!!!!!!!!!!!!!!
 
 """
-NIfTI マスクスライス抽出スクリプト（訓練データ用）
+NIfTI マスクスライス抽出スクリプト（テストデータ用）
 機能:
 * アノテーション画像から軸方向のマスクスライスを抽出
 * CT画像のスライスと1対1で対応
-* data/slice_train/axial_mask/に保存
+* data/slice_test/axial_mask/に保存
 """
 import numpy as np
 import pandas as pd
@@ -20,10 +20,10 @@ def setup_logger(log_dir: str = "./logs"):
     """ロガーの初期化"""
     Path(log_dir).mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_file = Path(log_dir) / f"mask_slice_extraction_train_{timestamp}.log"
+    log_file = Path(log_dir) / f"mask_slice_extraction_test_{timestamp}.log"
 
     # ロガーの設定
-    logger = logging.getLogger("MaskSliceExtractor_Train")
+    logger = logging.getLogger("MaskSliceExtractor_Test")
     logger.setLevel(logging.DEBUG)
 
     # 既存のハンドラーをクリア
@@ -56,9 +56,9 @@ logger = setup_logger()
 # ----------------------- 設定 -----------------------
 # 実行前に必ず確認する
 current_file = Path(__file__).resolve()
-PROJECT_ROOT = current_file.parent.parent.parent  # 3階層上がプロジェクトルート
-input_base_dir  = PROJECT_ROOT / "data/processed_train"
-output_base_dir = PROJECT_ROOT / "data/slice_train/axial_mask"
+PROJECT_ROOT = current_file.parent.parent.parent.parent  # 4階層上がプロジェクトルート
+input_base_dir  = PROJECT_ROOT / "data/processed_test"
+output_base_dir = PROJECT_ROOT / "data/slice_test/axial_mask"
 target_cases    = list(range(1003, 1085))
 
 def process_vertebra_directory(
@@ -189,7 +189,7 @@ def process_case_directory(inp_dir: Path, output_base_dir: Path, target_cases: L
 # ------------------- メイン処理 --------------------
 if __name__ == "__main__":
     logger.info("=" * 60)
-    logger.info("NIfTI マスクスライス抽出処理開始（訓練データ）")
+    logger.info("NIfTI マスクスライス抽出処理開始（テストデータ）")
     logger.info("=" * 60)
     logger.info(f"入力ディレクトリ: {input_base_dir}")
     logger.info(f"出力ディレクトリ: {output_base_dir}")

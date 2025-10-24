@@ -1,11 +1,11 @@
 ### 最初にどの軸をスライスするか、またどこのフォルダにつくるのか、要確認!!!!!!!!!!!!!!!!!!!!!
 
 """
-NIfTI マスクスライス抽出スクリプト（テストデータ用）
+NIfTI マスクスライス抽出スクリプト（訓練データ用）- Coronal版
 機能:
-* アノテーション画像から軸方向のマスクスライスを抽出
+* アノテーション画像からCoronal（冠状断）のマスクスライスを抽出
 * CT画像のスライスと1対1で対応
-* data/slice_test/axial_mask/に保存
+* data/slice_train/coronal_mask/に保存
 """
 import numpy as np
 import pandas as pd
@@ -20,10 +20,10 @@ def setup_logger(log_dir: str = "./logs"):
     """ロガーの初期化"""
     Path(log_dir).mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_file = Path(log_dir) / f"mask_slice_extraction_test_{timestamp}.log"
+    log_file = Path(log_dir) / f"mask_slice_extraction_train_{timestamp}.log"
 
     # ロガーの設定
-    logger = logging.getLogger("MaskSliceExtractor_Test")
+    logger = logging.getLogger("MaskSliceExtractor_Train")
     logger.setLevel(logging.DEBUG)
 
     # 既存のハンドラーをクリア
@@ -56,9 +56,9 @@ logger = setup_logger()
 # ----------------------- 設定 -----------------------
 # 実行前に必ず確認する
 current_file = Path(__file__).resolve()
-PROJECT_ROOT = current_file.parent.parent.parent  # 3階層上がプロジェクトルート
+PROJECT_ROOT = current_file.parent.parent.parent.parent  # 4階層上がプロジェクトルート
 input_base_dir  = PROJECT_ROOT / "data/processed_test"
-output_base_dir = PROJECT_ROOT / "data/slice_test/axial_mask"
+output_base_dir = PROJECT_ROOT / "data/slice_test/coronal_mask" # <--- 変更
 target_cases    = list(range(1003, 1085))
 
 def process_vertebra_directory(
@@ -76,19 +76,19 @@ def process_vertebra_directory(
         annotation_data = annotation_img.get_fdata()
         annotation_bin = (annotation_data != 0).astype(np.uint8)
 
-        axis_name = "axial"
+        axis_name = "coronal" # <--- 変更
         H, W, D = map(int, annotation_bin.shape)
 
-        logger.debug(f"  椎体: {vertebra_dir.name}, 形状: ({H}, {W}, {D})")
+        logger.debug(f"   椎体: {vertebra_dir.name}, 形状: ({H}, {W}, {D})")
 
         output_dir = output_base_dir / inp_dir_name / vertebra_dir.name
         output_dir.mkdir(parents=True, exist_ok=True)
 
         fracture_slice_count = 0
 
-        # スライス毎に処理
-        for z in range(D):
-            mask_slice = annotation_bin[:, :, z].astype(np.uint8)
+        # スライス毎に処理 (Coronal: Y軸 (W) に沿ってスライス)
+        for y in range(W): # <--- 変更: (z in range(D)) から
+            mask_slice = annotation_bin[:, y, :].astype(np.uint8) # <--- 変更: [:, :, z] から
             has_fract = bool(mask_slice.any())
             fracture_label = int(has_fract)
 
@@ -97,13 +97,13 @@ def process_vertebra_directory(
 
             # マスクスライスをNIfTI形式で保存
             mask_nifti = nib.Nifti1Image(mask_slice, affine=annotation_img.affine)
-            mask_path = output_dir / f"mask_{z:03d}.nii"
+            mask_path = output_dir / f"mask_{y:03d}.nii" # <--- 変更: (z:03d) から
             nib.save(mask_nifti, str(mask_path))
 
             folder_results.append({
                 "MaskPath": str(mask_path),
                 "Vertebra": vertebra_dir.name,
-                "SliceIndex": z,
+                "SliceIndex": y, # <--- 変更: (z) から
                 "Fracture_Label": fracture_label,
                 "Case": case_number,
                 "Axis": axis_name,
@@ -113,10 +113,10 @@ def process_vertebra_directory(
                 "InputMaskPath": str(vertebra_dir / f"cut_ans{case_number}.nii"),
             })
 
-        logger.info(f"    {vertebra_dir.name}: {D}マスクスライス抽出 (骨折: {fracture_slice_count}スライス)")
+        logger.info(f"     {vertebra_dir.name}: {W}マスクスライス抽出 (骨折: {fracture_slice_count}スライス)") # <--- 変更: (D) から
 
     except Exception as e:
-        logger.error(f"  椎体処理エラー: {vertebra_dir.name} - {e}", exc_info=True)
+        logger.error(f"   椎体処理エラー: {vertebra_dir.name} - {e}", exc_info=True)
 
     return folder_results
 
@@ -148,7 +148,7 @@ def process_case_directory(inp_dir: Path, output_base_dir: Path, target_cases: L
         annotation_path = vertebra_dir / f"cut_ans{case_number}.nii"
 
         if not annotation_path.exists():
-            logger.warning(f"  アノテーションファイルが見つかりません: {annotation_path}")
+            logger.warning(f"   アノテーションファイルが見つかりません: {annotation_path}")
             skipped_count += 1
             continue
 
@@ -165,7 +165,7 @@ def process_case_directory(inp_dir: Path, output_base_dir: Path, target_cases: L
             vertebra_count += 1
 
         except Exception as e:
-            logger.error(f"  椎体 {vertebra_dir.name} の読み込みエラー: {e}")
+            logger.error(f"   椎体 {vertebra_dir.name} の読み込みエラー: {e}")
             skipped_count += 1
 
     # CSV 保存
@@ -178,9 +178,9 @@ def process_case_directory(inp_dir: Path, output_base_dir: Path, target_cases: L
         total_slices = len(df)
 
         logger.info(f"完了: {inp_dir.name}")
-        logger.info(f"  椎体数: {vertebra_count}, スキップ: {skipped_count}")
-        logger.info(f"  総マスクスライス数: {total_slices}, 骨折スライス: {fracture_count}")
-        logger.info(f"  CSV保存: {csv_path}")
+        logger.info(f"   椎体数: {vertebra_count}, スキップ: {skipped_count}")
+        logger.info(f"   総マスクスライス数: {total_slices}, 骨折スライス: {fracture_count}")
+        logger.info(f"   CSV保存: {csv_path}")
         return True
     else:
         logger.warning(f"{inp_dir.name}: 処理可能なデータがありませんでした")
@@ -189,7 +189,7 @@ def process_case_directory(inp_dir: Path, output_base_dir: Path, target_cases: L
 # ------------------- メイン処理 --------------------
 if __name__ == "__main__":
     logger.info("=" * 60)
-    logger.info("NIfTI マスクスライス抽出処理開始（テストデータ）")
+    logger.info("NIfTI マスクスライス抽出処理開始（訓練データ）")
     logger.info("=" * 60)
     logger.info(f"入力ディレクトリ: {input_base_dir}")
     logger.info(f"出力ディレクトリ: {output_base_dir}")
@@ -220,9 +220,9 @@ if __name__ == "__main__":
 
         logger.info("=" * 60)
         logger.info("全ケース処理完了")
-        logger.info(f"  処理対象: {total_cases}ケース")
-        logger.info(f"  成功: {success_cases}ケース")
-        logger.info(f"  失敗/スキップ: {failed_cases}ケース")
+        logger.info(f"   処理対象: {total_cases}ケース")
+        logger.info(f"   成功: {success_cases}ケース")
+        logger.info(f"   失敗/スキップ: {failed_cases}ケース")
         logger.info("=" * 60)
 
     except KeyboardInterrupt:
