@@ -6,6 +6,8 @@
 !vertebrae_Unet/**   
 !vertebrae_YOLO/
 !vertebrae_YOLO/**
+!A/
+!A/**
 !data_preparing/
 !data_preparing/**
 !claude/
