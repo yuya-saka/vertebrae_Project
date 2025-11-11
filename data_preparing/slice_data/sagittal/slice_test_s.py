@@ -245,3 +245,4 @@ if __name__ == "__main__":
     except Exception as e:
         logger.error(f"予期しないエラーが発生しました: {e}", exc_info=True)
         raise
+    
