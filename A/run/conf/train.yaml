@@ -1,0 +1,47 @@
+# Training hyperparameters
+
+training:
+  batch_size: 32
+  num_workers: 8
+  max_epochs: 100
+  accumulation_steps: 1  # Gradient accumulation
+
+  # Early stopping
+  early_stopping:
+    enabled: true
+    patience: 15
+    monitor: "val_loss"  # "val_loss" or "val_pr_auc"
+    mode: "min"  # "min" for loss, "max" for pr_auc
+
+  # Checkpoint
+  checkpoint:
+    save_top_k: 3
+    monitor: "val_pr_auc"
+    mode: "max"
+    save_last: true
+
+# Optimizer
+optimizer:
+  name: "AdamW"
+  lr: 0.001
+  weight_decay: 0.0001
+
+  # Differential learning rate
+  use_differential_lr: true
+  encoder_lr_factor: 0.1  # encoder_lr = lr * 0.1
+
+# Scheduler
+scheduler:
+  name: "ReduceLROnPlateau"
+  mode: "min"
+  factor: 0.5
+  patience: 5
+  min_lr: 0.00001
+
+# Loss weights
+loss:
+  w_class: 1.0  # Classification loss weight (main task)
+  w_seg: 0.1    # Segmentation loss weight (auxiliary task)
+  seg_loss_type: "focal"  # 'focal', 'dice', 'focal_dice'
+  focal_alpha: 0.25
+  focal_gamma: 2.0

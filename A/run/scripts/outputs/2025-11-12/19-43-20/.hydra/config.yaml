@@ -1,0 +1,137 @@
+project_root: /mnt/nfs1/home/yamamoto-hiroto/research/vertebrae_saka
+data_dir: ${project_root}/data
+slice_train_dir: ${data_dir}/slice_train
+slice_test_dir: ${data_dir}/slice_test
+output_base_dir: ${project_root}/A/output
+device:
+  gpu_id: 2
+  use_amp: false
+train_patient_ids:
+- 1003
+- 1015
+- 1017
+- 1025
+- 1027
+- 1030
+- 1035
+- 1038
+- 1039
+- 1043
+- 1045
+- 1046
+- 1047
+- 1049
+- 1052
+- 1055
+- 1059
+- 1060
+- 1061
+- 1062
+- 1067
+- 1069
+- 1070
+- 1073
+- 1074
+- 1075
+- 1077
+- 1080
+- 1082
+- 1083
+test_patient_ids:
+- 1010
+- 1012
+- 1016
+- 1021
+- 1051
+- 1054
+- 1079
+- 1084
+training:
+  batch_size: 8
+  num_workers: 8
+  max_epochs: 2
+  accumulation_steps: 1
+  early_stopping:
+    enabled: true
+    patience: 15
+    monitor: val_loss
+    mode: min
+  checkpoint:
+    save_top_k: 3
+    monitor: val_pr_auc
+    mode: max
+    save_last: true
+optimizer:
+  name: AdamW
+  lr: 0.001
+  weight_decay: 0.0001
+  use_differential_lr: true
+  encoder_lr_factor: 0.1
+scheduler:
+  name: ReduceLROnPlateau
+  mode: min
+  factor: 0.5
+  patience: 5
+  min_lr: 1.0e-05
+loss:
+  w_class: 1.0
+  w_seg: 0.1
+  seg_loss_type: focal
+  focal_alpha: 0.25
+  focal_gamma: 2.0
+data:
+  axis: axial
+  image_base_dir: ${slice_train_dir}/axial
+  mask_base_dir: ${slice_train_dir}/axial_mask
+  image_size:
+  - 256
+  - 256
+  hu_windows:
+    channel_1:
+      min: 0
+      max: 1800
+      description: Whole bone
+    channel_2:
+      min: -200
+      max: 300
+      description: Soft tissue
+    channel_3:
+      min: 200
+      max: 1200
+      description: Bone window
+  augmentation:
+    rotation_degrees: 45
+    translation_pixels: 20
+    scale_range:
+    - 0.8
+    - 1.2
+    horizontal_flip_prob: 0.5
+    contrast_range:
+    - 0.9
+    - 1.1
+model:
+  model:
+    name: MultiTaskUNet
+    encoder_name: resnet18
+    encoder_weights: imagenet
+    in_channels: 3
+    decoder_channels:
+    - 256
+    - 128
+    - 64
+    - 32
+    - 16
+    classifier:
+      dropout: 0.2
+      use_gap: true
+split:
+  n_folds: 5
+  fold_id: 0
+experiment:
+  description: Multi-task U-Net with ${model.encoder_name} on ${data.axis} slices
+seed: 42
+wandb:
+  project: vertebrae_multitask
+  entity: yuya00-university-of-hyogo
+  mode: offline
+  log_interval: 10

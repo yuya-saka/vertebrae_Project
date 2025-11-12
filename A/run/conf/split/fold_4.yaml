@@ -1,0 +1,4 @@
+# K-fold CV configuration - Fold 4
+
+n_folds: 5
+fold_id: 4

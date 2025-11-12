@@ -1,0 +1,21 @@
+# Main configuration file
+
+defaults:
+  - constants
+  - train
+  - data: axial  # Change this for different axes: axial, coronal, sagittal
+  - model: multitask_unet_resnet18
+  - split: fold_0
+  - _self_
+
+experiment:
+  description: "Multi-task U-Net with ${model.encoder_name} on ${data.axis} slices"
+
+seed: 42
+
+# WandB settings
+wandb:
+  project: "vertebrae_multitask"
+  entity: "yuya00-university-of-hyogo"  # Set to your WandB username
+  mode: "online"  # "online", "offline", "disabled"
+  log_interval: 10

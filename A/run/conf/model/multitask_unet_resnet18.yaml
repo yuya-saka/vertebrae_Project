@@ -1,0 +1,16 @@
+# Multi-Task U-Net with ResNet18 encoder
+
+name: "MultiTaskUNet"
+
+# Encoder settings
+encoder_name: "resnet18"
+encoder_weights: "imagenet"  # "imagenet" or null
+in_channels: 3
+
+# Decoder settings
+decoder_channels: [256, 128, 64, 32, 16]
+
+# Classification head settings
+classifier:
+  dropout: 0.2
+  use_gap: true  # Global Average Pooling
