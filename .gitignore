@@ -34,6 +34,7 @@ data/
 vertebrae_Unet/output/
 vertebrae_Unet/outputs/
 lightning_logs/
+A/run/scripts/outputs/
 
 
 #いったん無視するやつ

@@ -47,9 +47,9 @@ test_patient_ids:
 - 1079
 - 1084
 training:
-  batch_size: 8
+  batch_size: 32
   num_workers: 8
-  max_epochs: 2
+  max_epochs: 100
   accumulation_steps: 1
   early_stopping:
     enabled: true
@@ -133,7 +133,7 @@ seed: 42
 wandb:
   project: vertebrae_multitask
   entity: yuya00-university-of-hyogo
-  mode: offline
+  mode: online
   log_interval: 10
 output_dir: /mnt/nfs1/home/yamamoto-hiroto/research/vertebrae_saka/A/output/axial/fold_0
 checkpoint_dir: /mnt/nfs1/home/yamamoto-hiroto/research/vertebrae_saka/A/output/axial/fold_0/checkpoints
