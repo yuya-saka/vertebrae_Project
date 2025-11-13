@@ -41,7 +41,7 @@ def main(cfg: DictConfig):
     # ========================================
     # 0. Experiment setup
     # ========================================
-    axis = cfg.data.axis
+    axis = cfg.data_direction.axis
     fold_id = cfg.split.fold_id
     model_name = cfg.model.encoder_name
 
@@ -490,7 +490,7 @@ def save_checkpoint(
         'optimizer_state_dict': optimizer.state_dict(),
         'metrics': metrics,
         'config': OmegaConf.to_container(cfg, resolve=True),
-        'axis': cfg.data.axis,
+        'axis': cfg.data_direction.axis,
         'fold_id': cfg.split.fold_id,
         'model_name': cfg.model.encoder_name
     }

@@ -1,0 +1,33 @@
+# Sagittal slice configuration
+
+axis: "sagittal"
+
+# Data paths
+image_base_dir: "${slice_train_dir}/sagittal"
+mask_base_dir: "${slice_train_dir}/sagittal_mask"
+
+# Image settings
+image_size: [256, 256]
+
+# HU Window settings (3 channels)
+hu_windows:
+  channel_1:
+    min: 0
+    max: 1800
+    description: "Whole bone"
+  channel_2:
+    min: -200
+    max: 300
+    description: "Soft tissue"
+  channel_3:
+    min: 200
+    max: 1200
+    description: "Bone window"
+
+# Data augmentation
+augmentation:
+  rotation_degrees: 45
+  translation_pixels: 20
+  scale_range: [0.8, 1.2]
+  horizontal_flip_prob: 0.5
+  contrast_range: [0.9, 1.1]

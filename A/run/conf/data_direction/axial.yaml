@@ -1,0 +1,33 @@
+# Axial slice configuration
+
+axis: "axial"
+
+# Data paths
+image_base_dir: "${slice_train_dir}/axial"
+mask_base_dir: "${slice_train_dir}/axial_mask"
+
+# Image settings
+image_size: [256, 256]  # (H, W)
+
+# HU Window settings (3 channels)
+hu_windows:
+  channel_1:
+    min: 0
+    max: 1800
+    description: "Whole bone"
+  channel_2:
+    min: -200
+    max: 300
+    description: "Soft tissue"
+  channel_3:
+    min: 200
+    max: 1200
+    description: "Bone window"
+
+# Data augmentation
+augmentation:
+  rotation_degrees: 45       # ±45 degrees
+  translation_pixels: 20     # ±20 pixels
+  scale_range: [0.8, 1.2]    # 0.8x ~ 1.2x
+  horizontal_flip_prob: 0.5
+  contrast_range: [0.9, 1.1]

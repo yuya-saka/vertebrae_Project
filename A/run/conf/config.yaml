@@ -3,13 +3,13 @@
 defaults:
   - constants
   - train
-  - data: axial  # Change this for different axes: axial, coronal, sagittal
+  - data_direction: axial  # Change this for different axes: axial, coronal, sagittal
   - model: multitask_unet_resnet18
   - split: fold_0
   - _self_
 
 experiment:
-  description: "Multi-task U-Net with ${model.encoder_name} on ${data.axis} slices"
+  description: "Multi-task U-Net with ${model.encoder_name} on ${data_direction.axis} slices"
 
 seed: 42
 
