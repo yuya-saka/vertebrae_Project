@@ -13,13 +13,16 @@ def dice_coefficient(pred: torch.Tensor, target: torch.Tensor, threshold: float 
     Compute Dice coefficient.
 
     Args:
-        pred: Predicted probabilities (B, 1, H, W)
+        pred: Predicted logits (B, 1, H, W)
         target: Ground truth binary mask (B, 1, H, W)
         threshold: Binarization threshold
 
     Returns:
         Dice coefficient (0-1)
     """
+    # Convert logits to probabilities
+    pred = torch.sigmoid(pred)
+
     pred_binary = (pred > threshold).float()
     target_binary = target.float()
 
@@ -37,13 +40,16 @@ def iou_score(pred: torch.Tensor, target: torch.Tensor, threshold: float = 0.5) 
     Compute IoU (Intersection over Union).
 
     Args:
-        pred: Predicted probabilities (B, 1, H, W)
+        pred: Predicted logits (B, 1, H, W)
         target: Ground truth binary mask (B, 1, H, W)
         threshold: Binarization threshold
 
     Returns:
         IoU score (0-1)
     """
+    # Convert logits to probabilities
+    pred = torch.sigmoid(pred)
+
     pred_binary = (pred > threshold).float()
     target_binary = target.float()
 
@@ -89,16 +95,16 @@ def compute_metrics_batch(
     Compute metrics for a batch.
 
     Args:
-        pred_class: Classification predictions (B,)
-        pred_seg: Segmentation predictions (B, 1, H, W)
+        pred_class: Classification logits (B,)
+        pred_seg: Segmentation logits (B, 1, H, W)
         target_class: Classification labels (B,)
         target_seg: Segmentation masks (B, 1, H, W)
 
     Returns:
         Dict with all metrics
     """
-    # Classification accuracy
-    pred_class_binary = (pred_class > 0.5).float()
+    # Classification accuracy (binary threshold at 0.0 for logits)
+    pred_class_binary = (pred_class > 0.0).float()
     class_acc = (pred_class_binary == target_class).float().mean().item()
 
     # Segmentation metrics

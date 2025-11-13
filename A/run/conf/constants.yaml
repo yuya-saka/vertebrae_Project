@@ -1,7 +1,9 @@
 # Project paths and patient IDs
 
 # Project root (absolute path)
-project_root: "/mnt/nfs1/home/yamamoto-hiroto/research/vertebrae_saka"
+# 環境に合わせてコメントアウトを切り替える
+#project_root: "/mnt/nfs1/home/yamamoto-hiroto/research/vertebrae_saka"
+project_root: "/home/yuya/reseach/vertebrae/vertebrae_project"
 
 # Data directories
 data_dir: "${project_root}/data"
@@ -13,7 +15,7 @@ output_base_dir: "${project_root}/A/output"
 
 # GPU device settings
 device:
-  gpu_id: 2  # GPU device ID (0, 1, 2, ...), null for auto-detect
+  gpu_id: 0  # GPU device ID (0, 1, 2, ...), null for auto-detect
   use_amp: false  # Automatic Mixed Precision (for faster training)
 
 # Patient IDs (train/test split)

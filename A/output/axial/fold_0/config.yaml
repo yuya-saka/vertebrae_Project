@@ -1,10 +1,10 @@
-project_root: /mnt/nfs1/home/yamamoto-hiroto/research/vertebrae_saka
+project_root: /home/yuya/reseach/vertebrae/vertebrae_project
 data_dir: ${project_root}/data
 slice_train_dir: ${data_dir}/slice_train
 slice_test_dir: ${data_dir}/slice_test
 output_base_dir: ${project_root}/A/output
 device:
-  gpu_id: 2
+  gpu_id: 0
   use_amp: false
 train_patient_ids:
 - 1003
@@ -47,9 +47,9 @@ test_patient_ids:
 - 1079
 - 1084
 training:
-  batch_size: 32
+  batch_size: 4
   num_workers: 8
-  max_epochs: 100
+  max_epochs: 1
   accumulation_steps: 1
   early_stopping:
     enabled: true
@@ -63,7 +63,7 @@ training:
     save_last: true
 optimizer:
   name: AdamW
-  lr: 0.001
+  lr: 0.0001
   weight_decay: 0.0001
   use_differential_lr: true
   encoder_lr_factor: 0.1
@@ -75,11 +75,11 @@ scheduler:
   min_lr: 1.0e-05
 loss:
   w_class: 1.0
-  w_seg: 0.1
+  w_seg: 1.0
   seg_loss_type: dice
   focal_alpha: 0.25
   focal_gamma: 2.0
-data:
+data_direction:
   axis: axial
   image_base_dir: ${slice_train_dir}/axial
   mask_base_dir: ${slice_train_dir}/axial_mask
@@ -127,14 +127,15 @@ split:
   n_folds: 5
   fold_id: 0
 experiment:
-  description: Multi-task U-Net with ${model.encoder_name} on ${data.axis} slices
+  description: Multi-task U-Net with ${model.encoder_name} on ${data_direction.axis}
+    slices
   name: axial/fold_0
 seed: 42
 wandb:
   project: vertebrae_multitask
   entity: yuya00-university-of-hyogo
-  mode: online
+  mode: offline
   log_interval: 10
-output_dir: /mnt/nfs1/home/yamamoto-hiroto/research/vertebrae_saka/A/output/axial/fold_0
-checkpoint_dir: /mnt/nfs1/home/yamamoto-hiroto/research/vertebrae_saka/A/output/axial/fold_0/checkpoints
-log_dir: /mnt/nfs1/home/yamamoto-hiroto/research/vertebrae_saka/A/output/axial/fold_0/logs
+output_dir: /home/yuya/reseach/vertebrae/vertebrae_project/A/output/axial/fold_0
+checkpoint_dir: /home/yuya/reseach/vertebrae/vertebrae_project/A/output/axial/fold_0/checkpoints
+log_dir: /home/yuya/reseach/vertebrae/vertebrae_project/A/output/axial/fold_0/logs

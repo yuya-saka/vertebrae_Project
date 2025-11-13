@@ -159,8 +159,8 @@ augmentation:
 ```bash
 # 1エポックのみ、少数データでテスト
 uv run python train.py \
-  training.max_epochs=2 \
-  training.batch_size=8 \
+  training.max_epochs=1 \
+  training.batch_size=4 \
   wandb.mode=offline
 ```
 

@@ -26,7 +26,7 @@ class FocalLoss(nn.Module):
     def forward(self, pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
         """
         Args:
-            pred: Predicted probabilities (B, 1, H, W) or (B, H, W)
+            pred: Predicted logits (B, 1, H, W) or (B, H, W)
             target: Ground truth binary mask (B, 1, H, W) or (B, H, W)
 
         Returns:
@@ -35,7 +35,8 @@ class FocalLoss(nn.Module):
         pred = pred.view(-1)
         target = target.view(-1)
 
-        bce = F.binary_cross_entropy(pred, target, reduction='none')
+        # Compute BCE from logits
+        bce = F.binary_cross_entropy_with_logits(pred, target, reduction='none')
         pt = torch.exp(-bce)
         focal_loss = self.alpha * (1 - pt) ** self.gamma * bce
 
@@ -57,12 +58,15 @@ class DiceLoss(nn.Module):
     def forward(self, pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
         """
         Args:
-            pred: Predicted probabilities (B, 1, H, W)
+            pred: Predicted logits (B, 1, H, W)
             target: Ground truth binary mask (B, 1, H, W)
 
         Returns:
             Dice loss value
         """
+        # Convert logits to probabilities
+        pred = torch.sigmoid(pred)
+
         pred = pred.view(-1)
         target = target.view(-1)
 
@@ -121,16 +125,16 @@ class MultiTaskLoss(nn.Module):
         Compute multi-task loss.
 
         Args:
-            pred_class: Classification predictions (B,)
-            pred_seg: Segmentation predictions (B, 1, H, W)
+            pred_class: Classification logits (B,)
+            pred_seg: Segmentation logits (B, 1, H, W)
             target_class: Classification labels (B,)
             target_seg: Segmentation masks (B, 1, H, W)
 
         Returns:
             Dict with 'total', 'class', 'seg' losses
         """
-        # Classification loss (BCE)
-        loss_class = F.binary_cross_entropy(pred_class, target_class)
+        # Classification loss (BCE with logits)
+        loss_class = F.binary_cross_entropy_with_logits(pred_class, target_class)
 
         # Segmentation loss
         if self.seg_loss_type == 'focal_dice':

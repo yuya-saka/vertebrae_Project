@@ -42,8 +42,7 @@ class MultiTaskUNet(nn.Module):
             nn.AdaptiveAvgPool2d((1, 1)),
             nn.Flatten(),
             nn.Dropout(cfg.classifier.dropout),
-            nn.Linear(512, 1),
-            nn.Sigmoid()
+            nn.Linear(512, 1)
         )
 
         # Branch 2: Segmentation decoder
@@ -63,10 +62,7 @@ class MultiTaskUNet(nn.Module):
         self.up0 = self._make_decoder_block(self.decoder_channels[3] + 64, self.decoder_channels[4])
 
         # Segmentation output head
-        self.seg_head = nn.Sequential(
-            nn.Conv2d(self.decoder_channels[4], 1, kernel_size=1),
-            nn.Sigmoid()
-        )
+        self.seg_head = nn.Conv2d(self.decoder_channels[4], 1, kernel_size=1)
 
     def _build_resnet18_encoder(self, cfg: DictConfig):
         """Build ResNet18 encoder."""
@@ -104,8 +100,8 @@ class MultiTaskUNet(nn.Module):
             x: Input image (B, 3, 256, 256)
 
         Returns:
-            p_class: Classification probability (B,)
-            p_seg: Segmentation probability map (B, 1, 256, 256)
+            p_class: Classification logits (B,)
+            p_seg: Segmentation logits map (B, 1, 256, 256)
         """
         # Encoder forward pass
         x0 = self.encoder_conv1(x)  # (B, 64, 128, 128)
