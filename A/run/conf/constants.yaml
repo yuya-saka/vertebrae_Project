@@ -2,8 +2,8 @@
 
 # Project root (absolute path)
 # 環境に合わせてコメントアウトを切り替える
-#project_root: "/mnt/nfs1/home/yamamoto-hiroto/research/vertebrae_saka"
-project_root: "/home/yuya/reseach/vertebrae/vertebrae_project"
+project_root: "/mnt/nfs1/home/yamamoto-hiroto/research/vertebrae_saka"
+#project_root: "/home/yuya/reseach/vertebrae/vertebrae_project"
 
 # Data directories
 data_dir: "${project_root}/data"

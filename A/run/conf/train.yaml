@@ -23,7 +23,7 @@ training:
 # Optimizer
 optimizer:
   name: "AdamW"
-  lr: 0.0001  # 高すぎる恐れがあるので、いったん下げる
+  lr: 0.00001  # 高すぎる恐れがあるので、いったん下げる
   weight_decay: 0.0001
 
   # Differential learning rate

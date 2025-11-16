@@ -1,4 +1,4 @@
-project_root: /home/yuya/reseach/vertebrae/vertebrae_project
+project_root: /mnt/nfs1/home/yamamoto-hiroto/research/vertebrae_saka
 data_dir: ${project_root}/data
 slice_train_dir: ${data_dir}/slice_train
 slice_test_dir: ${data_dir}/slice_test
@@ -47,9 +47,9 @@ test_patient_ids:
 - 1079
 - 1084
 training:
-  batch_size: 4
+  batch_size: 32
   num_workers: 8
-  max_epochs: 1
+  max_epochs: 100
   accumulation_steps: 1
   early_stopping:
     enabled: true
@@ -63,7 +63,7 @@ training:
     save_last: true
 optimizer:
   name: AdamW
-  lr: 0.0001
+  lr: 1.0e-05
   weight_decay: 0.0001
   use_differential_lr: true
   encoder_lr_factor: 0.1
@@ -134,8 +134,8 @@ seed: 42
 wandb:
   project: vertebrae_multitask
   entity: yuya00-university-of-hyogo
-  mode: offline
+  mode: online
   log_interval: 10
-output_dir: /home/yuya/reseach/vertebrae/vertebrae_project/A/output/axial/fold_0
-checkpoint_dir: /home/yuya/reseach/vertebrae/vertebrae_project/A/output/axial/fold_0/checkpoints
-log_dir: /home/yuya/reseach/vertebrae/vertebrae_project/A/output/axial/fold_0/logs
+output_dir: /mnt/nfs1/home/yamamoto-hiroto/research/vertebrae_saka/A/output/axial/fold_0
+checkpoint_dir: /mnt/nfs1/home/yamamoto-hiroto/research/vertebrae_saka/A/output/axial/fold_0/checkpoints
+log_dir: /mnt/nfs1/home/yamamoto-hiroto/research/vertebrae_saka/A/output/axial/fold_0/logs
