@@ -2,27 +2,17 @@
 
 axis: "coronal"
 
-# Data paths
-image_base_dir: "${slice_train_dir}/coronal"
-mask_base_dir: "${slice_train_dir}/coronal_mask"
+# Data paths - NEW DATASET (PNG images)
+csv_file: "${dataset_path_dir}/segmentation_dataset_coron.csv"
+project_root_for_csv: "${project_root}"  # CSV paths are relative to project root
 
 # Image settings
 image_size: [256, 256]
+use_png: true  # Using PNG images instead of NIFTI
 
-# HU Window settings (3 channels)
-hu_windows:
-  channel_1:
-    min: 0
-    max: 1800
-    description: "Whole bone"
-  channel_2:
-    min: -200
-    max: 300
-    description: "Soft tissue"
-  channel_3:
-    min: 200
-    max: 1200
-    description: "Bone window"
+# NOTE: HU Window settings are disabled for PNG dataset (already normalized)
+# PNG images are 8-bit RGB, already preprocessed and normalized
+hu_windows: null
 
 # Data augmentation
 augmentation:

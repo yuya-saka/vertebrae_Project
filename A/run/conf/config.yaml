@@ -15,7 +15,7 @@ seed: 42
 
 # WandB settings
 wandb:
-  project: "vertebrae_multitask"
+  project: "vertebrae_multitask_2"
   entity: "yuya00-university-of-hyogo"  # Set to your WandB username
   mode: "online"  # "online", "offline", "disabled"
   log_interval: 10

@@ -61,15 +61,30 @@ Attention-Guided Multi-Task Modelによる椎骨骨折検出と高精度3D可視
 
 ## 5. データパイプライン
 
-- **入力:** 2Dスライス画像（Axial, Coronal, Sagittal） 。
-    
+### **データセット形式 (2025年1月更新)**
+
+- **入力:** 2DスライスPNG画像（Axial, Coronal, Sagittal）
+    - 形式: **PNG (8-bit RGB)**、すでに正規化済み
+    - 解像度: 統一済み（181×181など、データによって異なる）
+    - **HU Window処理は不要**（PNGは前処理済み）
+
+- **データ構造:**
+    - CSVファイル: `data/dataset/Path/segmentation_dataset_{axial|coron|sagit}.csv`
+    - 列構成: `image_path`, `mask_path`, `patient_id`, `vertebra_id`, `orientation`, `has_fracture`
+    - patient_id形式: `AI1003` (文字列)
+
 - **正解ラベル:** 以下の2つをペアで用意する。
-    
-    1. **`Label_class`**: スライス単位の2値ラベル（0 or 1）。アノテーションピクセルが1つでも存在すれば「1」 。
-        
-    2. **`Label_seg`**: ピクセル単位の2値アノテーションマスク 。
-        
-- **データ拡張:** 画像と `Label_seg` マスクに対し、論文と同一の変換（回転、平行移動、反転、ノイズ等 ）を同時に適用する。
+
+    1. **`has_fracture`**: スライス単位の2値ラベル（0 or 1）。アノテーションピクセルが1つでも存在すれば「1」 。
+
+    2. **`mask_path`**: ピクセル単位の2値アノテーションマスク（PNG形式）。
+
+- **データ拡張:** 画像とマスクに対し、同時に変換（回転±45度、平行移動、スケール、反転等）を適用する。
+
+- **Train/Test分割:**
+    - `constants.yaml`の`train_patient_ids`/`test_patient_ids`で管理
+    - 患者レベル分割（データリーケージ防止）
+    - K-fold CV対応（`split/fold_*.yaml`）
     
 
 ## 6. 学習戦略（Segをガイドとして利用）

@@ -7,18 +7,22 @@ project_root: "/mnt/nfs1/home/yamamoto-hiroto/research/vertebrae_saka"
 
 # Data directories
 data_dir: "${project_root}/data"
-slice_train_dir: "${data_dir}/slice_train"
-slice_test_dir: "${data_dir}/slice_test"
+dataset_dir: "${data_dir}/dataset"
+dataset_path_dir: "${dataset_dir}/Path"
+slice_image_dir: "${dataset_dir}/slice_image"
+slice_image_ans_dir: "${dataset_dir}/slice_image_ans"
 
 # Output directory (will be organized by axis/fold)
 output_base_dir: "${project_root}/A/output"
 
 # GPU device settings
 device:
-  gpu_id: 0  # GPU device ID (0, 1, 2, ...), null for auto-detect
+  gpu_id: 2  # GPU device ID (0, 1, 2, ...), null for auto-detect
   use_amp: false  # Automatic Mixed Precision (for faster training)
 
 # Patient IDs (train/test split)
+# NOTE: New dataset uses string format like "AI1003", but we keep numeric IDs here
+# The code will convert them to "AI{id}" format when filtering CSVs
 train_patient_ids: [
   1003, 1015, 1017, 1025, 1027, 1030, 1035, 1038, 1039, 1043,
   1045, 1046, 1047, 1049, 1052, 1055, 1059, 1060, 1061, 1062,

@@ -28,6 +28,7 @@
 *.csv
 *.pth
 *.jpg
+*.bak
 wandb/
 prior_YOLO_file/
 data/
