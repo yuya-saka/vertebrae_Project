@@ -149,3 +149,98 @@ def gpu_rotate_3d(input_array, angle, axes=(0, 1), reshape=True, gpu_id=None):
 
     # Convert back to numpy
     return rotated_tensor.squeeze(0).squeeze(0).cpu().numpy()
+
+
+def gpu_rotate_3d_mask(input_array, angle, axes=(0, 1), reshape=True, gpu_id=None):
+    """
+    GPU-accelerated 3D rotation for segmentation masks using nearest neighbor interpolation.
+    This preserves integer label values.
+
+    Args:
+        input_array (np.ndarray): The input 3D numpy array (segmentation mask).
+        angle (float): Rotation angle in degrees.
+        axes (tuple): Axes to rotate around. (0,1), (1,2), or (0,2).
+        reshape (bool): Whether to reshape output to fit entire rotated volume.
+        gpu_id (int, optional): GPU device ID to use.
+
+    Returns:
+        np.ndarray: The rotated 3D numpy array with preserved label values.
+    """
+    if not torch.cuda.is_available():
+        raise RuntimeError("CUDA is not available, but GPU rotation was requested.")
+
+    # GPU device selection
+    if gpu_id is not None:
+        device = torch.device(f"cuda:{gpu_id}")
+    else:
+        device = torch.device("cuda")
+
+    # Convert to tensor and move to GPU
+    tensor = torch.from_numpy(input_array.astype(np.float32)).to(device).unsqueeze(0).unsqueeze(0)
+
+    # Convert angle to radians
+    theta_rad = math.radians(angle)
+    cos_theta = math.cos(theta_rad)
+    sin_theta = math.sin(theta_rad)
+
+    # Create appropriate affine transformation matrix based on axes
+    if axes == (0, 1):
+        affine_matrix = torch.tensor([
+            [cos_theta, -sin_theta, 0, 0],
+            [sin_theta, cos_theta, 0, 0],
+            [0, 0, 1, 0]
+        ], dtype=torch.float32, device=device).unsqueeze(0)
+    elif axes == (1, 2):
+        affine_matrix = torch.tensor([
+            [1, 0, 0, 0],
+            [0, cos_theta, -sin_theta, 0],
+            [0, sin_theta, cos_theta, 0]
+        ], dtype=torch.float32, device=device).unsqueeze(0)
+    elif axes == (0, 2):
+        affine_matrix = torch.tensor([
+            [cos_theta, 0, sin_theta, 0],
+            [0, 1, 0, 0],
+            [-sin_theta, 0, cos_theta, 0]
+        ], dtype=torch.float32, device=device).unsqueeze(0)
+    else:
+        raise ValueError(f"Unsupported axes: {axes}")
+
+    # Calculate output size if reshape=True
+    if reshape:
+        D, H, W = input_array.shape
+        if axes == (0, 1):
+            new_D = int(math.ceil(abs(D * cos_theta) + abs(H * sin_theta)))
+            new_H = int(math.ceil(abs(D * sin_theta) + abs(H * cos_theta)))
+            new_W = W
+            output_size = (new_D, new_H, new_W)
+        elif axes == (1, 2):
+            new_D = D
+            new_H = int(math.ceil(abs(H * cos_theta) + abs(W * sin_theta)))
+            new_W = int(math.ceil(abs(H * sin_theta) + abs(W * cos_theta)))
+            output_size = (new_D, new_H, new_W)
+        elif axes == (0, 2):
+            new_D = int(math.ceil(abs(D * cos_theta) + abs(W * sin_theta)))
+            new_H = H
+            new_W = int(math.ceil(abs(D * sin_theta) + abs(W * cos_theta)))
+            output_size = (new_D, new_H, new_W)
+    else:
+        output_size = input_array.shape
+
+    # Generate sampling grid
+    grid = torch.nn.functional.affine_grid(
+        affine_matrix,
+        (1, 1, *output_size),
+        align_corners=False
+    )
+
+    # Apply affine transformation with NEAREST neighbor for masks
+    rotated_tensor = torch.nn.functional.grid_sample(
+        tensor,
+        grid,
+        mode='nearest',  # Use nearest neighbor to preserve label values
+        padding_mode='zeros',
+        align_corners=False
+    )
+
+    # Convert back to numpy
+    return rotated_tensor.squeeze(0).squeeze(0).cpu().numpy()

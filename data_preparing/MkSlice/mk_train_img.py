@@ -7,8 +7,7 @@ import matplotlib.animation as animation
 import math
 #import cv2
 #import glob
-from apply_normalization import apply_normalization, gpu_rotate_3d
-from cut_ans_slice import sgcr_cut, crax_cut, axsg_cut, acs_cut
+from apply_normalization import apply_normalization, gpu_rotate_3d, gpu_rotate_3d_mask
 import time
 #from PIL import Image
 #from scipy.ndimage.interpolation import rotate  #conda
@@ -26,9 +25,109 @@ SLB = 15 ##通常面の拡張量（スラブを作るために拡張し、スラ
 SLB2 = math.floor(SLB * math.sqrt(2))##クロス面の拡張量（スラブを作るために拡張し、スライス画像を保存するときには拡張前に戻る）
 PLANE_NAME = ["Sagit","Coron","Axial","SgCr1","SgCr2","CrAx1","CrAx2","AxSg1","AxSg2"]
 
-def mk_train_img(sbj_no,inp_nii,inp_path, seg_path, ans_path, an_opath, cn_opath, si_opath, si_opath_ans,si_opath_rect, al_opath, al_opath2, gpu_id=None):
+def process_answer_slices(ans_volume, lnum, plane_idx, SLB, SLB2):
+    """
+    Process answer slices for a specific plane with slab generation.
+
+    Args:
+        ans_volume: 3D answer mask volume (may be rotated)
+        lnum: List of unique label numbers
+        plane_idx: Plane index (0-8)
+        SLB: Standard slab extension
+        SLB2: Cross-plane slab extension
+
+    Returns:
+        List of slices with slab summation for each label
+    """
+    if len(lnum) == 0:
+        return []
+
+    # Determine which axis to slice along and cropping parameters
+    # Planes: 0=Sagit, 1=Coron, 2=Axial, 3=SgCr1, 4=SgCr2, 5=CrAx1, 6=CrAx2, 7=AxSg1, 8=AxSg2
+    if plane_idx in [0, 3, 7]:  # Slice along axis 0
+        slice_axis = 0
+        if plane_idx in [3, 7]:  # Cross planes
+            crop = (slice(SLB2, ans_volume.shape[0] - SLB2),
+                   slice(SLB2 if plane_idx == 3 else SLB, ans_volume.shape[1] - (SLB2 if plane_idx == 3 else SLB)),
+                   slice(SLB, ans_volume.shape[2] - SLB) if plane_idx == 3 else slice(SLB2, ans_volume.shape[2] - SLB2))
+        else:
+            crop = (slice(SLB, ans_volume.shape[0] - SLB),
+                   slice(SLB, ans_volume.shape[1] - SLB),
+                   slice(SLB, ans_volume.shape[2] - SLB))
+    elif plane_idx in [1, 4, 8]:  # Slice along axis 1
+        slice_axis = 1
+        if plane_idx in [4, 8]:  # Cross planes
+            crop = (slice(SLB2, ans_volume.shape[0] - SLB2),
+                   slice(SLB2, ans_volume.shape[1] - SLB2),
+                   slice(SLB, ans_volume.shape[2] - SLB))
+        else:
+            crop = (slice(SLB, ans_volume.shape[0] - SLB),
+                   slice(SLB, ans_volume.shape[1] - SLB),
+                   slice(SLB, ans_volume.shape[2] - SLB))
+    else:  # plane_idx in [2, 5, 6]: Slice along axis 2
+        slice_axis = 2
+        if plane_idx in [5, 6]:  # Cross planes
+            crop = (slice(SLB, ans_volume.shape[0] - SLB),
+                   slice(SLB2, ans_volume.shape[1] - SLB2) if plane_idx == 5 else slice(SLB, ans_volume.shape[1] - SLB),
+                   slice(SLB2, ans_volume.shape[2] - SLB2))
+        else:
+            crop = (slice(SLB, ans_volume.shape[0] - SLB),
+                   slice(SLB, ans_volume.shape[1] - SLB),
+                   slice(SLB, ans_volume.shape[2] - SLB))
+
+    result_per_label = []
+
+    # Process each label separately
+    for label in lnum:
+        # Create binary mask for this label
+        binary_mask = (ans_volume == label).astype(np.float32)
+
+        # Apply cropping
+        cropped_mask = binary_mask[crop]
+
+        # Generate slices with slab summation
+        slices_with_slab = []
+        num_slices = cropped_mask.shape[slice_axis]
+
+        for i in range(num_slices):
+            # Sum over a slab of 15 slices (7 before + current + 7 after)
+            start = max(0, i - 7)
+            end = min(num_slices, i + 8)
+
+            if slice_axis == 0:
+                slab_sum = np.sum(cropped_mask[start:end, :, :], axis=0)
+            elif slice_axis == 1:
+                slab_sum = np.sum(cropped_mask[:, start:end, :], axis=1)
+            else:  # slice_axis == 2
+                slab_sum = np.sum(cropped_mask[:, :, start:end], axis=2)
+
+            # Transpose if needed for cross planes
+            if plane_idx in [5, 6, 7]:
+                slab_sum = slab_sum.T
+
+            slices_with_slab.append(slab_sum)
+
+        result_per_label.append(slices_with_slab)
+
+    return result_per_label
+
+def mk_train_img(sbj_no,inp_nii,inp_path, seg_path, ans_path, an_opath, cn_opath, si_opath, si_opath_ans,si_opath_rect, al_opath, al_opath2, gpu_id=None, plane_mode='standard'):
     start_time = time.time()
     print(f"[INFO] Processing subject {sbj_no} - Start")
+    print(f"[INFO] Plane mode: {plane_mode}")
+
+    # Determine which planes to process based on mode
+    if plane_mode == 'standard':
+        plane_range = range(0, 3)  # Planes 0-2: Sagittal, Coronal, Axial
+        process_rotations = False
+    elif plane_mode == 'cross':
+        plane_range = range(3, 9)  # Planes 3-8: 6 cross planes
+        process_rotations = True
+    elif plane_mode == 'all':
+        plane_range = range(0, 9)  # All 9 planes
+        process_rotations = True
+    else:
+        raise ValueError(f"Invalid plane_mode: {plane_mode}. Must be 'standard', 'cross', or 'all'")
 
     inp_struct = nib.load(inp_path)
     seg_struct = nib.load(seg_path)
@@ -223,60 +322,75 @@ def mk_train_img(sbj_no,inp_nii,inp_path, seg_path, ans_path, an_opath, cn_opath
     original_size_cross = 0
     BONE_THR_MIN = 0  # minimum CT value of bone segmentation
     BONE_THR_MAX = 1900  # maximum CT value of bone segmentation
+
     for v in range(len(vert_no)):
-        print("CT回転＆スライス保存: ",v)
+        print(f"CT回転＆スライス保存 ({plane_mode}): ", v)
         vert_img3 = [0 for j in range(3)]
         if (max_x[v] == 0 or max_y[v] == 0 or max_z[v] == 0):
             continue
         lnum = np.unique(ans_img2[v])[1:]
         print("ANS NII 回転前:", lnum)
-        #### SgCr - Use GPU-accelerated rotation
-        vert_img3[0] = gpu_rotate_3d(vert_img2[v], angle=45, axes=(0,1), reshape=True, gpu_id=gpu_id)
-        print("SgCr", vert_img3[0].shape)
-        ### CrAx - Use GPU-accelerated rotation
-        vert_img3[1] = gpu_rotate_3d(vert_img2[v], angle=45, axes=(1,2), reshape=True, gpu_id=gpu_id)
-        print("CrAx", vert_img3[1].shape)
-        ### AxSg - Use GPU-accelerated rotation
-        vert_img3[2] = gpu_rotate_3d(vert_img2[v], angle=45, axes=(0,2), reshape=True, gpu_id=gpu_id)
-        print("AxSg", vert_img3[2].shape)
+
+        # Perform rotations only if processing cross planes
+        if process_rotations:
+            #### SgCr - Use GPU-accelerated rotation
+            vert_img3[0] = gpu_rotate_3d(vert_img2[v], angle=45, axes=(0,1), reshape=True, gpu_id=gpu_id)
+            print("SgCr", vert_img3[0].shape)
+            ### CrAx - Use GPU-accelerated rotation
+            vert_img3[1] = gpu_rotate_3d(vert_img2[v], angle=45, axes=(1,2), reshape=True, gpu_id=gpu_id)
+            print("CrAx", vert_img3[1].shape)
+            ### AxSg - Use GPU-accelerated rotation
+            vert_img3[2] = gpu_rotate_3d(vert_img2[v], angle=45, axes=(0,2), reshape=True, gpu_id=gpu_id)
+            print("AxSg", vert_img3[2].shape)
 
         #################################################################
         # CT スライス(スライス画像をvert_sliceに格納)
         #################################################################
         vert_slice = [[] for j in range(9)]
         print("CT NII :", vert_no[v])
-        
-        # Sagittal, Coronal, Axial slices from original volume
-        tmp = vert_img2[v]
-        print("CTスライス", tmp.shape)
-        vert_slice[0] = [tmp[i, :, :] for i in range(tmp.shape[0])]
-        vert_slice[1] = [tmp[:, i, :] for i in range(tmp.shape[1])]
-        vert_slice[2] = [tmp[:, :, i] for i in range(tmp.shape[2])]
 
-        # Slices from rotated volumes
-        # axes=(0,1) -> SgCr
-        tmp = vert_img3[0]
-        print("CTスライスSgCr", tmp.shape)
-        vert_slice[3] = [tmp[i, :, :] for i in range(tmp.shape[0])]
-        vert_slice[4] = [tmp[:, i, :] for i in range(tmp.shape[1])]
-        
-        # axes=(1,2) -> CrAx
-        tmp = vert_img3[1]
-        print("CTスライスCrAx", tmp.shape)
-        vert_slice[5] = [np.array(tmp[:, i, :]).T for i in range(tmp.shape[1])]
-        vert_slice[6] = [np.array(tmp[:, :, i]).T for i in range(tmp.shape[2])]
+        # Standard planes: Sagittal, Coronal, Axial slices from original volume
+        if 0 in plane_range or 1 in plane_range or 2 in plane_range:
+            tmp = vert_img2[v]
+            print("CTスライス", tmp.shape)
+            if 0 in plane_range:
+                vert_slice[0] = [tmp[i, :, :] for i in range(tmp.shape[0])]
+            if 1 in plane_range:
+                vert_slice[1] = [tmp[:, i, :] for i in range(tmp.shape[1])]
+            if 2 in plane_range:
+                vert_slice[2] = [tmp[:, :, i] for i in range(tmp.shape[2])]
 
-        # axes=(0,2) -> AxSg
-        tmp = vert_img3[2]
-        print("CTスライスAxSg", tmp.shape)
-        vert_slice[7] = [np.array(tmp[i, :, :]).T for i in range(tmp.shape[0])]
-        vert_slice[8] = [tmp[:, :, i] for i in range(tmp.shape[2])]
+        # Cross-plane slices (only if processing cross planes)
+        if process_rotations:
+            # axes=(0,1) -> SgCr
+            tmp = vert_img3[0]
+            print("CTスライスSgCr", tmp.shape)
+            if 3 in plane_range:
+                vert_slice[3] = [tmp[i, :, :] for i in range(tmp.shape[0])]
+            if 4 in plane_range:
+                vert_slice[4] = [tmp[:, i, :] for i in range(tmp.shape[1])]
+
+            # axes=(1,2) -> CrAx
+            tmp = vert_img3[1]
+            print("CTスライスCrAx", tmp.shape)
+            if 5 in plane_range:
+                vert_slice[5] = [np.array(tmp[:, i, :]).T for i in range(tmp.shape[1])]
+            if 6 in plane_range:
+                vert_slice[6] = [np.array(tmp[:, :, i]).T for i in range(tmp.shape[2])]
+
+            # axes=(0,2) -> AxSg
+            tmp = vert_img3[2]
+            print("CTスライスAxSg", tmp.shape)
+            if 7 in plane_range:
+                vert_slice[7] = [np.array(tmp[i, :, :]).T for i in range(tmp.shape[0])]
+            if 8 in plane_range:
+                vert_slice[8] = [tmp[:, :, i] for i in range(tmp.shape[2])]
 
         #################################################################
         # スライスのスラブ化＆周囲除去(vert_slice→vert_slice2) - Vectorized
         #################################################################
         vert_slice2 = [[] for j in range(9)]
-        for j in range(9):
+        for j in plane_range:  # Process based on plane_mode
             if not vert_slice[j]:
                 continue
 
@@ -316,14 +430,27 @@ def mk_train_img(sbj_no,inp_nii,inp_path, seg_path, ans_path, an_opath, cn_opath
             vert_slice2[j] = [tmp1, tmp15, tmp31]
 
         #################################################################
-        # ピクセル値の正規化＆スライス保存(BONE_THR_MAX～BONE_THR_MINの値が２５５に入るように正規化)
+        # ピクセル値の正規化＆スライス保存
         #################################################################
-        for j in range(9):
+        for j in plane_range:  # Process based on plane_mode
             tmp = vert_slice2[j]
+
+            # Skip if no slices were generated for this plane
+            if not tmp or len(tmp) == 0:
+                print(f"スキップ: 平面 {j} ({PLANE_NAME[j]}) - スライスなし")
+                continue
+
             print("ピクセル値の正規化＆スライス保存tmp:",[v,j,len(tmp)])
             sl=[0]*3
             for i in range(3):###スラブの数
                 tmp2 = tmp[i]
+
+                # Skip if this slab has no slices
+                if not tmp2 or len(tmp2) == 0:
+                    print(f"警告: スラブ {i} が空です (平面 {j})")
+                    sl[i] = []
+                    continue
+
                 print("tmp2", len(tmp2))
                 print("tmp2[0]", tmp2[0].shape)
                 sl2 = []
@@ -336,13 +463,18 @@ def mk_train_img(sbj_no,inp_nii,inp_path, seg_path, ans_path, an_opath, cn_opath
                     sl2.append(tmp3)
                 sl[i] = sl2
 
+            # Check if all slabs have data
+            if not sl[0] or not sl[1] or not sl[2]:
+                print(f"警告: いずれかのスラブが空です - スキップ (平面 {j})")
+                continue
+
             print("sl[0]:", len(sl[0]))
             print("sl[1]:", len(sl[1]))
             print("sl[2]:", len(sl[2]))
             print("sl[0][0]:", sl[0][0].shape)
             print("sl[1][0]:", sl[1][0].shape)
             print("sl[2][0]:", sl[2][0].shape)
-            text1 = si_opath + "AI" + f'{sbj_no:04}' + "_vert" + str(vert_no[v]) + PLANE_NAME[j] + "AVGProjectionIntensity0208\\"
+            text1 = si_opath + "AI" + f'{sbj_no:04}' + "_vert" + str(vert_no[v]) + PLANE_NAME[j] + "AVGProjectionIntensity0208/"
             os.makedirs(text1, exist_ok=True)
             for k in range(len(sl[0])):
                 tmp1 = sl[0][k]
@@ -406,26 +538,56 @@ def mk_train_img(sbj_no,inp_nii,inp_path, seg_path, ans_path, an_opath, cn_opath
     f.close()
 
     #################################################################
-    # 答えの回転＆スライス化（答えの場合は、スライス切り出しも実施）
+    # 答えの回転＆スライス化（GPU版）
     #################################################################
+    ans_process_start = time.time()
     ans_slice2 = [[0 for i in range(len(vert_no))] for j in range(9)]
+
     for v in range(len(vert_no)):
-        print("答えの回転＆スライス化: ",v)
+        print(f"答えの回転＆スライス化 (GPU - {plane_mode}): ", v)
         if (max_x[v] == 0 or max_y[v] == 0 or max_z[v] == 0):
             continue
-        ans_slice2[0][v], ans_slice2[1][v], ans_slice2[2][v] = acs_cut(ans_img2, v, SLB)
-        if(ans_slice2[0][v][0]):print("Sagit_ans",ans_slice2[0][v][0][0].shape)
-        if(ans_slice2[1][v][0]):print("Coron_ans",ans_slice2[1][v][0][0].shape)
-        if(ans_slice2[2][v][0]):print("Axial_ans",ans_slice2[2][v][0][0].shape)
-        ans_slice2[3][v], ans_slice2[4][v] = sgcr_cut(ans_img2, v, SLB, SLB2)
-        if(ans_slice2[3][v][0]):print("SgCr_ans",ans_slice2[3][v][0][0].shape)
-        if(ans_slice2[4][v][0]):print("SgCr_ans",ans_slice2[4][v][0][0].shape)
-        ans_slice2[5][v], ans_slice2[6][v] = crax_cut(ans_img2, v, SLB, SLB2)
-        if(ans_slice2[5][v][0]):print("CrAx_ans",ans_slice2[5][v][0][0].shape)
-        if(ans_slice2[6][v][0]):print("CrAx_ans",ans_slice2[6][v][0][0].shape)
-        ans_slice2[7][v], ans_slice2[8][v] = axsg_cut(ans_img2, v, SLB, SLB2)
-        if(ans_slice2[7][v][0]):print("AxSg_ans",ans_slice2[7][v][0][0].shape)
-        if(ans_slice2[8][v][0]):print("AxSg_ans",ans_slice2[8][v][0][0].shape)
+
+        # Get unique labels in this vertebra's mask
+        lnum = np.unique(ans_img2[v])[1:]
+        cnt = len(lnum) if len(lnum) > 0 else 1
+
+        # Rotate answer masks using GPU for cross-sectional planes (if needed)
+        if process_rotations:
+            ans_img_sgcr = gpu_rotate_3d_mask(ans_img2[v], angle=45, axes=(0, 1), reshape=True, gpu_id=gpu_id)
+            ans_img_crax = gpu_rotate_3d_mask(ans_img2[v], angle=45, axes=(1, 2), reshape=True, gpu_id=gpu_id)
+            ans_img_axsg = gpu_rotate_3d_mask(ans_img2[v], angle=45, axes=(0, 2), reshape=True, gpu_id=gpu_id)
+
+        # Process standard planes (0-2): Sagittal, Coronal, Axial
+        if 0 in plane_range:
+            ans_slice2[0][v] = process_answer_slices(ans_img2[v], lnum, 0, SLB, SLB2)
+        if 1 in plane_range:
+            ans_slice2[1][v] = process_answer_slices(ans_img2[v], lnum, 1, SLB, SLB2)
+        if 2 in plane_range:
+            ans_slice2[2][v] = process_answer_slices(ans_img2[v], lnum, 2, SLB, SLB2)
+
+        # Process cross planes (3-8)
+        if process_rotations:
+            # Plane 3-4: SgCr (Sagittal-Coronal cross)
+            if 3 in plane_range:
+                ans_slice2[3][v] = process_answer_slices(ans_img_sgcr, lnum, 3, SLB, SLB2)
+            if 4 in plane_range:
+                ans_slice2[4][v] = process_answer_slices(ans_img_sgcr, lnum, 4, SLB, SLB2)
+
+            # Plane 5-6: CrAx (Coronal-Axial cross)
+            if 5 in plane_range:
+                ans_slice2[5][v] = process_answer_slices(ans_img_crax, lnum, 5, SLB, SLB2)
+            if 6 in plane_range:
+                ans_slice2[6][v] = process_answer_slices(ans_img_crax, lnum, 6, SLB, SLB2)
+
+            # Plane 7-8: AxSg (Axial-Sagittal cross)
+            if 7 in plane_range:
+                ans_slice2[7][v] = process_answer_slices(ans_img_axsg, lnum, 7, SLB, SLB2)
+            if 8 in plane_range:
+                ans_slice2[8][v] = process_answer_slices(ans_img_axsg, lnum, 8, SLB, SLB2)
+
+    ans_process_end = time.time()
+    print(f"[TIME] Answer mask processing (GPU - {plane_mode}): {ans_process_end - ans_process_start:.2f}s")
     # #################################################################
     # #
     # ##################################################################
@@ -452,10 +614,10 @@ def mk_train_img(sbj_no,inp_nii,inp_path, seg_path, ans_path, an_opath, cn_opath
     #################################################################
     ans_slice3 = [[0 for i in range(len(vert_no))] for j in range(9)]
     for v in range(len(vert_no)):
-        print("学習用矩形リストの生成: ",v)
+        print(f"学習用矩形リストの生成 ({plane_mode}): ", v)
         if ( max_x[v] == 0 or max_y[v] == 0 or max_z[v] == 0 ):
             continue
-        for j in range(9):
+        for j in plane_range:  # Process based on plane_mode
             tmp = ans_slice2[j][v]
             vvv = []
             if len(tmp) == 0:##ラベルなし（骨折なし）
@@ -491,10 +653,15 @@ def mk_train_img(sbj_no,inp_nii,inp_path, seg_path, ans_path, an_opath, cn_opath
             ans_slice3[j][v]=vvv
 
         ###答えスライスの出力
-        for j in range(9):
+        for j in plane_range:  # Process based on plane_mode
             vvv = ans_slice3[j][v]##矩形座標
             tmp = copy.deepcopy(ans_slice2[j][v])  ####値を置き換えるのでDeepCopy
-            text1 = si_opath_ans + "_AI" + f'{sbj_no:04}' + "_vert" + str(vert_no[v]) + PLANE_NAME[j] + "\\"
+
+            # Skip if no data (check if it's an int or empty list)
+            if not isinstance(tmp, list) or len(tmp) == 0 or (isinstance(tmp[0], list) and len(tmp[0]) == 0):
+                continue
+
+            text1 = si_opath_ans + "_AI" + f'{sbj_no:04}' + "_vert" + str(vert_no[v]) + PLANE_NAME[j] + "/"
             os.makedirs(text1, exist_ok=True)
             for k in range(len(tmp[0])):  ###スライスの数
                 vvv2 = vvv[k]##矩形座標
@@ -538,14 +705,25 @@ def mk_train_img(sbj_no,inp_nii,inp_path, seg_path, ans_path, an_opath, cn_opath
                 pil_imgc.save(text2)
 
         ###矩形付きスライスの出力
-        for j in range(9):
+        for j in plane_range:  # Process based on plane_mode
             vvv = ans_slice3[j][v]  ##矩形座標
-            text1 = si_opath_rect + "rAI" + f'{sbj_no:04}' + "_vert" + str(vert_no[v]) + PLANE_NAME[j] + "\\"
+
+            # Skip if no data (check if it's an int or empty list)
+            if not isinstance(vvv, list) or len(vvv) == 0:
+                continue
+
+            text1 = si_opath_rect + "rAI" + f'{sbj_no:04}' + "_vert" + str(vert_no[v]) + PLANE_NAME[j] + "/"
             os.makedirs(text1, exist_ok=True)
             for k in range(len(vvv)):  ###スライスの数
                 vvv2 = vvv[k]  ##矩形座標
-                rgb_slice = si_opath + "AI" + f'{sbj_no:04}' + "_vert" + str(vert_no[v]) + PLANE_NAME[j] + "AVGProjectionIntensity0208\\"
+                rgb_slice = si_opath + "AI" + f'{sbj_no:04}' + "_vert" + str(vert_no[v]) + PLANE_NAME[j] + "AVGProjectionIntensity0208/"
                 rgb_slice2 = rgb_slice + "A" + f'{sbj_no:04}' + "_V" + str(vert_no[v]) + "_" + f'{k:03}' + "_000.png"
+
+                # Check if the source image file exists
+                if not os.path.exists(rgb_slice2):
+                    print(f"警告: ファイルが見つかりません: {rgb_slice2}")
+                    continue
+
                 img = Image.open(rgb_slice2)  #
                 draw = ImageDraw.Draw(img)  # 矩形の描画の準備
                 for h in range(len(vvv2)):  ###ラベルの数##矩形座標
@@ -558,15 +736,20 @@ def mk_train_img(sbj_no,inp_nii,inp_path, seg_path, ans_path, an_opath, cn_opath
     #　学習用矩形リストの出力
     #################################################################
     for v in range(len(vert_no)):##椎骨番号
-        print("学習用矩形リストの出力: ",v)
+        print(f"学習用矩形リストの出力 ({plane_mode}): ", v)
         if ( max_x[v] == 0 or max_y[v] == 0 or max_z[v] == 0 ):
             continue
-        for j in range(9):##断面方向
+        for j in plane_range:##断面方向 - Process based on plane_mode
             tmp = ans_slice3[j][v]
+
+            # Skip if no data (check if it's an int or empty list)
+            if not isinstance(tmp, list) or len(tmp) == 0:
+                continue
+
             text2 = ""
             for k in range(len(tmp)):  ###スライスの数
                 ####スライス画像名の生成
-                slice_name1 = si_opath + "AI" + f'{sbj_no:04}' + "_vert" + str(vert_no[v]) + PLANE_NAME[j] + "AVGProjectionIntensity0208\\"
+                slice_name1 = si_opath + "AI" + f'{sbj_no:04}' + "_vert" + str(vert_no[v]) + PLANE_NAME[j] + "AVGProjectionIntensity0208/"
                 slice_name2 = slice_name1 + "A" + f'{sbj_no:04}' + "_V" + str(vert_no[v]) + "_" + f'{k:03}' + "_000.png"
                 if len(tmp[k]) <= 0:#矩形がない場合
                     text2 = text2 + slice_name2

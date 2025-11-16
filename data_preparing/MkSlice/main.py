@@ -16,13 +16,18 @@ import argparse
 ##　推論プログラムを作る
 ##
 
-# uv run python main.py --gpu 0or1or2
+# uv run python main.py --gpu 0or1or2 --planes standard
+# uv run python main.py --gpu 0 --planes cross
+# uv run python main.py --gpu 1 --planes all
 
 # Parse command line arguments
 parser = argparse.ArgumentParser(description='Process vertebrae CT scans and create training slices')
 parser.add_argument('--gpu', type=int, default=None, help='GPU device ID to use (default: auto-detect from CUDA_VISIBLE_DEVICES or use GPU 0)')
 parser.add_argument('--start-id', type=int, default=1001, help='Starting subject ID (default: 1001)')
 parser.add_argument('--end-id', type=int, default=1100, help='Ending subject ID (exclusive, default: 1100)')
+parser.add_argument('--planes', type=str, default='standard',
+                    choices=['standard', 'cross', 'all'],
+                    help='Planes to process: standard (0-2: Sagittal/Coronal/Axial), cross (3-8: 6 cross planes), all (0-8: all 9 planes)')
 args = parser.parse_args()
 
 # Display GPU configuration
@@ -32,6 +37,14 @@ else:
     import os as os_env
     cuda_visible = os_env.environ.get('CUDA_VISIBLE_DEVICES', '0')
     print(f"[CONFIG] Using GPU from CUDA_VISIBLE_DEVICES: {cuda_visible} (or default GPU 0)")
+
+# Display plane configuration
+plane_descriptions = {
+    'standard': '3 standard planes (0-2: Sagittal, Coronal, Axial)',
+    'cross': '6 cross planes (3-8: SgCr1, SgCr2, CrAx1, CrAx2, AxSg1, AxSg2)',
+    'all': 'All 9 planes (0-8: standard + cross)'
+}
+print(f"[CONFIG] Processing planes: {args.planes} - {plane_descriptions[args.planes]}")
 
 inp_nii = "/mnt/nfs1/home/yamamoto-hiroto/research/vertebrae_saka/input_nii/"
 out_path = "/mnt/nfs1/home/yamamoto-hiroto/research/vertebrae_saka/data/output/"
@@ -90,7 +103,8 @@ for i in range(args.start_id, args.end_id):
                      si_opath_rect,
                      os.path.join(al_opath, f"ans_li{i:04}_"),
                      os.path.join(al_opath, "ans_li_"),
-                     gpu_id=args.gpu)
+                     gpu_id=args.gpu,
+                     plane_mode=args.planes)
     else:
         # Optional: print a message if files for an ID are missing
         # print(f"Skipping ID {i}: missing one or more required files.")
