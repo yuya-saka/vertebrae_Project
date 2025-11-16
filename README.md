@@ -61,8 +61,9 @@ PROJECT_ROOT/
 | 
 ├── data_preparing/   # dataの準備
 ├── data/             # 画像データ
-|
+|    └── dataset/    # 3dボリュームを正規化して、作成したデータセット(これを使う)
 ├── vertebrae_YOLO/  # YOLOプロジェクト
 │   
 └── vertebrae_Unet/  # Unetプロジェクト      
 ```
+
