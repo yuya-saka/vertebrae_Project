@@ -180,14 +180,28 @@ def generate_datasets(dataset_root: str, ans_list_dir: str, output_dir: str):
     # Storage for all data
     all_data = []
 
-    # Process all ans_list files
+    # First pass: identify all fractured vertebrae and collect annotation data
+    # If a vertebra has an ans_list file, it means the vertebra has a fracture
+    fractured_vertebrae = set()
+    annotation_data = {}  # key: image_path, value: (annotation, fracture_level)
+
     ans_list_files = sorted([f for f in os.listdir(ans_list_dir) if f.startswith('ans_li')])
 
-    print(f"Processing {len(ans_list_files)} ans_list files...")
+    print(f"Identifying fractured vertebrae and annotations from {len(ans_list_files)} ans_list files...")
 
     for ans_file in ans_list_files:
-        ans_file_path = os.path.join(ans_list_dir, ans_file)
+        # Extract patient and vertebra info from filename
+        # Format: ans_li1003_30_0.txt -> AI1003, vert30
+        match = re.match(r'ans_li(\d+)_(\d+)_\d+\.txt', ans_file)
+        if match:
+            patient_num = match.group(1)
+            vert_num = match.group(2)
+            patient_id = f'AI{patient_num}'
+            vertebra_id = f'vert{vert_num}'
+            fractured_vertebrae.add(f'{patient_id}_{vertebra_id}')
 
+        # Read annotations from this file
+        ans_file_path = os.path.join(ans_list_dir, ans_file)
         with open(ans_file_path, 'r') as f:
             for line in f:
                 if not line.strip():
@@ -195,44 +209,72 @@ def generate_datasets(dataset_root: str, ans_list_dir: str, output_dir: str):
 
                 # Parse the line
                 image_path, annotation = parse_ans_line(line)
+                if image_path:
+                    # Store annotation data
+                    fracture_level = annotation[-1] if annotation else 0
+                    annotation_data[image_path] = (annotation, fracture_level)
 
-                if not image_path:
-                    continue
+    print(f"Found {len(fractured_vertebrae)} unique fractured vertebrae")
+    print(f"Found {len(annotation_data)} images with annotation data")
 
-                # Update image path to new location
-                updated_image_path = update_image_path(image_path, dataset_root)
+    # Second pass: scan all image files from slice_image directory
+    print(f"\nScanning all images from slice_image directory...")
 
-                # Extract metadata from path
-                folder_match = re.search(r'slice_image(AI\d+)_(vert\d+)(Axial|Coron|Sagit)', updated_image_path)
-                if not folder_match:
-                    continue
+    slice_image_dir = os.path.join(dataset_root, 'slice_image')
+    folders = sorted([f for f in os.listdir(slice_image_dir) if f.startswith('slice_image')])
 
-                patient_id = folder_match.group(1)
-                vertebra_id = folder_match.group(2)
-                orientation = folder_match.group(3)
+    for folder in folders:
+        folder_path = os.path.join(slice_image_dir, folder)
+        if not os.path.isdir(folder_path):
+            continue
 
-                # Find corresponding mask and rect paths
-                mask_path = find_corresponding_mask_path(updated_image_path, dataset_root)
-                rect_path = find_corresponding_rect_path(updated_image_path, dataset_root)
+        # Extract metadata from folder name
+        folder_match = re.match(r'slice_image(AI\d+)_(vert\d+)(Axial|Coron|Sagit)', folder)
+        if not folder_match:
+            continue
 
-                # Determine if has fracture
-                has_fracture = 1 if annotation is not None else 0
-                fracture_level = annotation[-1] if annotation else 0
+        patient_id = folder_match.group(1)
+        vertebra_id = folder_match.group(2)
+        orientation = folder_match.group(3)
 
-                # Store data
-                data_entry = {
-                    'image_path': updated_image_path,
-                    'mask_path': mask_path if mask_path else '',
-                    'rect_path': rect_path if rect_path else '',
-                    'patient_id': patient_id,
-                    'vertebra_id': vertebra_id,
-                    'orientation': orientation,
-                    'has_fracture': has_fracture,
-                    'fracture_level': fracture_level,
-                    'annotation': annotation
-                }
+        # Determine if this vertebra has fracture
+        vertebra_key = f'{patient_id}_{vertebra_id}'
+        has_fracture = 1 if vertebra_key in fractured_vertebrae else 0
 
-                all_data.append(data_entry)
+        # Process all images in this folder
+        for filename in sorted(os.listdir(folder_path)):
+            if not filename.endswith('.png'):
+                continue
+
+            image_path = os.path.join(slice_image_dir, folder, filename)
+
+            # Find corresponding mask and rect paths
+            mask_path = find_corresponding_mask_path(image_path, dataset_root)
+            rect_path = find_corresponding_rect_path(image_path, dataset_root)
+
+            # Get annotation data if available
+            # Build the old path format to match annotation_data keys
+            old_path = f"/mnt/nfs1/home/yamamoto-hiroto/research/vertebrae_saka/data/output/{folder}/{filename}"
+            annotation = None
+            fracture_level = 0
+
+            if old_path in annotation_data:
+                annotation, fracture_level = annotation_data[old_path]
+
+            # Store data
+            data_entry = {
+                'image_path': image_path,
+                'mask_path': mask_path if mask_path else '',
+                'rect_path': rect_path if rect_path else '',
+                'patient_id': patient_id,
+                'vertebra_id': vertebra_id,
+                'orientation': orientation,
+                'has_fracture': has_fracture,
+                'fracture_level': fracture_level,
+                'annotation': annotation
+            }
+
+            all_data.append(data_entry)
 
     print(f"Processed {len(all_data)} total images")
 
