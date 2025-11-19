@@ -8,6 +8,8 @@
 !vertebrae_YOLO/**
 !A/
 !A/**
+!VAE/
+!VAE/**
 !data_preparing/
 !data_preparing/**
 !claude/
