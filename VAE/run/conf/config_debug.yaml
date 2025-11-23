@@ -1,0 +1,40 @@
+# Debug Configuration (少ないepochで動作確認)
+
+defaults:
+  - model: vq_vae
+  - dataset: vae_data
+  - training: vae_training
+  - _self_
+
+# Experiment設定
+experiment:
+  name: vqvae_debug
+  description: "Debug run with minimal epochs"
+
+# Fold設定
+fold_id: 1
+
+# 出力ディレクトリ
+output_dir: /mnt/nfs1/home/yamamoto-hiroto/research/vertebrae_saka/VAE/outputs
+
+# GPU設定
+accelerator: gpu
+devices: 1
+precision: 32  # デバッグ時は32bit
+
+# Debug用のオーバーライド
+training:
+  max_epochs: 3                # 少ないepoch
+  early_stopping:
+    patience: 5
+
+dataset:
+  batch_size: 2                # 小さいバッチサイズ
+  num_workers: 2
+
+# Hydra設定
+hydra:
+  run:
+    dir: ${output_dir}/${experiment.name}/fold_${fold_id}
+  job:
+    chdir: false

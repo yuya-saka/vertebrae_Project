@@ -18,6 +18,7 @@
 !pyproject.toml
 !README.md
 !CLAUDE.md
+!GEMINI.md
 !.gitignore
 
 # ③ 重いデータや不要ファイルを無視
@@ -31,13 +32,14 @@
 *.pth
 *.jpg
 *.bak
+*.ckpt
 wandb/
 prior_YOLO_file/
 data/
 vertebrae_Unet/output/
 vertebrae_Unet/outputs/
 lightning_logs/
-A/run/scripts/outputs/
+VAE/outputs/
 
 
 #いったん無視するやつ

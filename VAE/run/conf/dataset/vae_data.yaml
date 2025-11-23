@@ -1,0 +1,27 @@
+# Data Configuration for VQ-VAE
+
+# データディレクトリ
+data_dir: /mnt/nfs1/home/yamamoto-hiroto/research/vertebrae_saka/data/3d_data/train_vae
+
+# DataLoader設定
+batch_size: 8
+num_workers: 8
+pin_memory: true
+
+# Data Augmentation設定
+augmentation:
+  horizontal_flip: true          # 左右反転
+  #vertical_flip: true            # 前後反転(使ってはいけない)
+  #rotation_90: true              # 90度回転
+  rotation_z: true               # z軸回りの回転
+  rotation_z_range: [-15, 15]    # z軸回転範囲 (度) 10~15%程度の回転
+  #translation_xy: true           # xy方向の移動
+  #translation_xy_percent: 0.05   # xy方向の移動範囲 (ボリュームサイズの5%)
+  scale: true                    # スケーリング
+  scale_range: [0.9, 1.1]        # スケール範囲
+  gaussian_noise: true           # ガウスノイズ
+  noise_std: 0.01                # ノイズ標準偏差
+  brightness: true               # 輝度調整
+  brightness_range: [-0.05, 0.05] # 輝度範囲
+  contrast: true                 # コントラスト調整
+  contrast_range: [0.95, 1.05]   # コントラスト範囲

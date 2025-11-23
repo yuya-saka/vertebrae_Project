@@ -1,0 +1,29 @@
+# Main Configuration File for VQ-VAE Training
+
+defaults:
+  - model: vq_vae
+  - dataset: vae_data
+  - training: vae_training
+
+# Experiment設定
+experiment:
+  name: vqvae_baseline
+  description: "3D VQ-VAE for normal vertebrae reconstruction"
+
+# Fold設定 (1-5)
+fold_id: 1
+
+# 出力ディレクトリ
+output_dir: /mnt/nfs1/home/yamamoto-hiroto/research/vertebrae_saka/VAE/outputs
+
+# GPU設定
+accelerator: gpu
+devices: 1
+precision: 16                    # Mixed precision (16 or 32)
+
+# Hydra設定
+hydra:
+  run:
+    dir: ${output_dir}/${experiment.name}/fold_${fold_id}
+  job:
+    chdir: false

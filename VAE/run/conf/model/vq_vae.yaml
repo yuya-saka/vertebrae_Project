@@ -1,0 +1,10 @@
+# VQ-VAE Model Configuration
+
+in_channels: 1
+hidden_dims: [32, 64, 128, 256]  # Encoder/Decoderの各層のチャネル数
+latent_dim: 256                   # 潜在表現の次元
+num_embeddings: 512               # コードブックサイズ
+commitment_cost: 0.25             # Commitment Loss係数 (β)
+dropout: 0.1                      # Dropout確率
+use_ema: false                    # EMAを使用するか
+ema_decay: 0.99                   # EMA減衰率

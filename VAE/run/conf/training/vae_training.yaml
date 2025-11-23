@@ -1,0 +1,40 @@
+# Training Configuration for VQ-VAE
+
+# 学習設定
+max_epochs: 200
+learning_rate: 1e-4
+optimizer: adamw                 # 'adam' or 'adamw'
+weight_decay: 1e-4
+recon_loss_type: l1              # 'l1' or 'l2'
+
+# スケジューラ設定
+scheduler: cosine                # 'cosine' or 'plateau'
+scheduler_config:
+  T_max: 200                     # CosineAnnealingLRの周期
+  eta_min: 1e-6                  # 最小学習率
+
+# Early Stopping
+early_stopping:
+  monitor: val/total_loss
+  patience: 20
+  mode: min
+
+# Model Checkpoint
+checkpoint:
+  monitor: val/total_loss
+  mode: min
+  save_top_k: 3
+  save_last: true
+
+# Logging
+log_image_freq: 5                # 画像ロギング頻度 (epoch)
+
+# WandB設定
+wandb:
+  project: vertebrae-vqvae
+  entity: null                   # WandBのユーザー名/チーム名 (nullの場合はデフォルト)
+  tags: ['vqvae', '3d', 'vertebrae']
+
+# 再現性
+seed: 42
+deterministic: true
